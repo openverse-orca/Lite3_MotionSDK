@@ -45,8 +45,7 @@ int main(int argc, char* argv[]){
   memset(&robot_joint_cmd, 0, sizeof(robot_joint_cmd));
   memset(&robot_joint_cmd_nn, 0, sizeof(robot_joint_cmd_nn));
 
-  // Sender* send_cmd          = new Sender("192.168.2.1",43893);              ///< Create send thread
-  Sender* send_cmd          = new Sender("192.168.1.120",43893);              ///< Create send thread
+  Sender* send_cmd          = new Sender("192.168.2.1",43893);              ///< Create send thread
   Receiver* robot_data_recv = new Receiver();                                 ///< Create a receive resolution
   robot_data_recv->RegisterCallBack(OnMessageUpdate);
   MotionSpline motion_spline;                                            ///< Demos for testing can be deleted by yourself
@@ -75,19 +74,19 @@ int main(int argc, char* argv[]){
     if(time_tick < 5000){
       // 
       cout << "try to pre stand" << endl;
-      fl_leg_positions[0] = 0 * kDegree2Radian;  
-      fl_leg_positions[1] = -70 * kDegree2Radian;
-      fl_leg_positions[2] = 150 * kDegree2Radian;
-      fr_leg_positions[0] = 0 * kDegree2Radian;  
-      fr_leg_positions[1] = -70 * kDegree2Radian;
-      fr_leg_positions[2] = 150 * kDegree2Radian;
-      hl_leg_positions[0] = 0 * kDegree2Radian;  
-      hl_leg_positions[1] = -70 * kDegree2Radian;
-      hl_leg_positions[2] = 150 * kDegree2Radian;
-      hr_leg_positions[0] = 0 * kDegree2Radian;  
-      hr_leg_positions[1] = -70 * kDegree2Radian;
-      hr_leg_positions[2] = 150 * kDegree2Radian;
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 45, 0.7);
+      fl_leg_positions[0] = 0;  
+      fl_leg_positions[1] = -70;
+      fl_leg_positions[2] = 150;
+      fr_leg_positions[0] = 0;  
+      fr_leg_positions[1] = -70;
+      fr_leg_positions[2] = 150;
+      hl_leg_positions[0] = 0;  
+      hl_leg_positions[1] = -70;
+      hl_leg_positions[2] = 150;
+      hr_leg_positions[0] = 0;  
+      hr_leg_positions[1] = -70;
+      hr_leg_positions[2] = 150;
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions);
 
       motion_spline.Motion(robot_joint_cmd,now_time,*robot_data, 45, 0.7, 1.0);    
     } 
@@ -98,24 +97,24 @@ int main(int argc, char* argv[]){
     if(time_tick >= 5000 && time_tick < 10000){
       // 
       cout << "try to stand" << endl;
-      fl_leg_positions[0] = 0 * kDegree2Radian;  
-      fl_leg_positions[1] = -57 * kDegree2Radian;
-      fl_leg_positions[2] = 103 * kDegree2Radian;
-      fr_leg_positions[0] = 0 * kDegree2Radian;  
-      fr_leg_positions[1] = -57 * kDegree2Radian;
-      fr_leg_positions[2] = 103 * kDegree2Radian;
-      hl_leg_positions[0] = 0 * kDegree2Radian;  
-      hl_leg_positions[1] = -57 * kDegree2Radian;
-      hl_leg_positions[2] = 103 * kDegree2Radian;
-      hr_leg_positions[0] = 0 * kDegree2Radian;  
-      hr_leg_positions[1] = -57 * kDegree2Radian;
-      hr_leg_positions[2] = 103 * kDegree2Radian;
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 45, 0.7);
+      fl_leg_positions[0] = 0;  
+      fl_leg_positions[1] = -57;
+      fl_leg_positions[2] = 103;
+      fr_leg_positions[0] = 0;  
+      fr_leg_positions[1] = -57;
+      fr_leg_positions[2] = 103;
+      hl_leg_positions[0] = 0;  
+      hl_leg_positions[1] = -57;
+      hl_leg_positions[2] = 103;
+      hr_leg_positions[0] = 0;  
+      hr_leg_positions[1] = -57;
+      hr_leg_positions[2] = 103;
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions);
 
       motion_spline.Motion(robot_joint_cmd,now_time,*robot_data, 45, 0.7, 1.5); 
     }
-    // compute action from neural network every 0.02s (50Hz)   4 * 0.005
-    if (time_tick % 20 == 0 && time_tick >= 10000) {
+    // compute action from neural network every 0.02s (50Hz) 
+    if (time_tick % 50 == 0 && time_tick >= 10000) {
       cout << "try to get action from neural network" << endl;
       // Convert RobotData to Observation
       realenv::Observation observation = ConvertRobotDataToObservation(*robot_data);
@@ -136,10 +135,49 @@ int main(int argc, char* argv[]){
       hr_leg_positions[0] = robot_joint_cmd_nn.hr_leg[0].position;
       hr_leg_positions[1] = robot_joint_cmd_nn.hr_leg[1].position;
       hr_leg_positions[2] = robot_joint_cmd_nn.hr_leg[2].position;
+
+      // reinit motion spline
+      motion_spline.GetInitData(robot_data->joint_data,now_time);
     }
     // // do spline interpolation
     if (time_tick >= 10000) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 35, 1.4);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions);
+
+      //print robot data
+      // Open the file in append mode
+      std::ofstream file("robot_data.txt", std::ios::app);
+      // if (!file.is_open()) {
+      //     std::cerr << "Failed to open file: robot_data.txt" << std::endl;
+      //     return 1; // Exit the program if the file cannot be opened
+      // }
+      // // Print robot data to the file
+      // PrintRobotData(robot_data, file);
+      // Close the file
+
+      // print robot data
+      // Open the file in append mode
+      if (!file.is_open()) {
+          std::cerr << "Failed to open file: robot_data.txt" << std::endl;
+          return 1; // Exit the program if the file cannot be opened
+      }
+      // Print robot data to the file
+      file << time_tick  << "target" << endl;
+      PrintRobotCmd(robot_joint_cmd, file);
+      // Close the file
+      file.close();
+      // cout << "cmd" << endl;
+      // cout << robot_joint_cmd.fr_leg[0].position << endl;
+      // cout << robot_joint_cmd.fr_leg[1].position << endl;
+      // cout << robot_joint_cmd.fr_leg[2].position << endl;
+      // cout << robot_joint_cmd.fl_leg[0].position << endl;
+      // cout << robot_joint_cmd.fl_leg[1].position << endl;
+      // cout << robot_joint_cmd.fl_leg[2].position << endl;
+      // cout << robot_joint_cmd.hr_leg[0].position << endl;
+      // cout << robot_joint_cmd.hr_leg[1].position << endl;
+      // cout << robot_joint_cmd.hr_leg[2].position << endl;
+      motion_spline.Motion(robot_joint_cmd,now_time,*robot_data, 45, 0.01, 0.2);
+      // send_cmd->ControlGet(ROBOT);                                            ///< Return the control right, input: ROBOT: Original algorithm control of the robot .  SDK: SDK control PS: over 50ms, no data set sent_ Send (cmd), you will lose control, you need to resend to obtain control
+      // break;
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){
@@ -148,26 +186,28 @@ int main(int argc, char* argv[]){
       send_cmd->SendCmd(robot_joint_cmd);  
     } 
 
-    // // print robot data
-    // // Open the file in append mode
-    // std::ofstream file("robot_data.csv", std::ios::app);
-
-    // // print robot data
-    // // Open the file in append mode
+    // print robot data
+    // Open the file in append mode
+    std::ofstream file("robot_data.txt", std::ios::app);
     // if (!file.is_open()) {
-    //     std::cerr << "Failed to open file: robot_data.csv" << std::endl;
+    //     std::cerr << "Failed to open file: robot_data.txt" << std::endl;
     //     return 1; // Exit the program if the file cannot be opened
     // }
-    // // // Print robot data to the file
-    // // file << time_tick << endl;
-    // // // PrintRobotCmd(robot_joint_cmd, file);
-    // // PrintRobotData(robot_data, file);
-    // if (time_tick == 1) {
-    //   WriteCSVHeader(file);
-    // }
-    // SaveRobotDataToCSV(robot_data, file);
-    // // Close the file
-    // file.close();
+    // // Print robot data to the file
+    // PrintRobotData(robot_data, file);
+    // Close the file
+
+    // print robot data
+    // Open the file in append mode
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: robot_data.txt" << std::endl;
+        return 1; // Exit the program if the file cannot be opened
+    }
+    // Print robot data to the file
+    file << time_tick << endl;
+    PrintRobotCmd(robot_joint_cmd, file);
+    // Close the file
+    file.close();
  
   }
   return 0;
