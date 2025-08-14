@@ -5,7 +5,9 @@ cmake_minimum_required(VERSION 3.15)
 project(realenv)
 
 # vcpkg
-set(VCPKG_HOME "/home/superfhwl/桌面/yaoxiang/dog_sim2real/0408_1/vcpkg/vcpkg")
+set(Protobuf_DIR "$ENV{HOME}/.orca/3rdParty/packages/grpc-1.51.1-rev2-linux/grpc/lib/cmake/protobuf")
+set(gRPC_DIR "$ENV{HOME}/.orca/3rdParty/packages/grpc-1.51.1-rev2-linux/grpc/lib/cmake/grpc")
+set(absl_DIR "$ENV{HOME}/.orca/3rdParty/packages/grpc-1.51.1-rev2-linux/grpc/lib/cmake/absl")
 
 # Protobuf
 set(protobuf_MODULE_COMPATIBLE TRUE)
