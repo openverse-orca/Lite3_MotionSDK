@@ -44,15 +44,15 @@ int main(int argc, char* argv[]){
   memset(&robot_joint_cmd, 0, sizeof(robot_joint_cmd));
   memset(&robot_joint_cmd_nn, 0, sizeof(robot_joint_cmd_nn));
 
-  // Sender* send_cmd          = new Sender("192.168.2.1",43893);              ///< Create send thread
-  Sender* send_cmd          = new Sender("192.168.1.120",43893);              ///< Create send thread
+  Sender* send_cmd          = new Sender("192.168.2.1",43893);              ///< Create send thread
+  // Sender* send_cmd          = new Sender("192.168.1.120",43893);              ///< Create send thread
   Receiver* robot_data_recv = new Receiver();                                 ///< Create a receive resolution
   robot_data_recv->RegisterCallBack(OnMessageUpdate);
   MotionSpline motion_spline;                                            ///< Demos for testing can be deleted by yourself
   RobotData *robot_data = &robot_data_recv->GetState();
 
   // Initialize gRPC client
-  std::string server_address = "localhost:50051";  // 默认服务器地址，可以通过命令行参数修改
+  std::string server_address = "localhost:50151";  // 默认服务器地址，可以通过命令行参数修改
   if (argc > 1) {
     server_address = argv[1];
   }
@@ -129,7 +129,7 @@ int main(int argc, char* argv[]){
     }
     // compute action from neural network every 0.02s (50Hz)   4 * 0.005
     if (time_tick % 20 == 0 && time_tick >= 10000) {
-      cout << "try to get action from neural network" << endl;
+
       static vector<float> last_action;
       if (last_action.empty()) {
         last_action = vector<float>(12, 0.0f);
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]){
       Observation processed_observation = ApplyObservationScalingAndNoise(observation);
 
       // Send the observation and receive the action
-      inference::InferenceResponse response = client->Predict(processed_observation.data, "default", true);
+      inference::InferenceResponse response = client->Predict(processed_observation.data, "stand_still", true); // stand_still, flat_terrain
       
       // Extract action data from response (original model output, not scaled)
       last_action.clear();
@@ -149,11 +149,15 @@ int main(int argc, char* argv[]){
           last_action.push_back(response.action(i));
       }
 
+      cout << "row_action: " << last_action[0] << " " << last_action[1] << " " << last_action[2] << " " << last_action[3] << " " << last_action[4] << " " << last_action[5] << " " << last_action[6] << " " << last_action[7] << " " << last_action[8] << " " << last_action[9] << " " << last_action[10] << " " << last_action[11] << endl;
+
       // Convert the response to RobotAction (with action scaling applied for robot control)
       RobotAction action = ConvertResponseToAction(response);
 
       // Convert the action back to RobotCmd
       robot_joint_cmd_nn = CreateRobotCmd(action);
+
+      cout << "action: " << action.data[0] << " " << action.data[1] << " " << action.data[2] << " " << action.data[3] << " " << action.data[4] << " " << action.data[5] << " " << action.data[6] << " " << action.data[7] << " " << action.data[8] << " " << action.data[9] << " " << action.data[10] << " " << action.data[11] << endl;
 
       fl_leg_positions[0] = robot_joint_cmd_nn.fl_leg[0].position;
       fl_leg_positions[1] = robot_joint_cmd_nn.fl_leg[1].position;
@@ -170,7 +174,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 20, 0.5);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 25, 0.5);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){

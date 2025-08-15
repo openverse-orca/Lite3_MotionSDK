@@ -354,14 +354,24 @@ RobotCmd CreateRobotCmd(const RobotAction& action) {
         cmd.joint_cmd[i].position = 0.0f;
         cmd.joint_cmd[i].velocity = 0.0f;
         cmd.joint_cmd[i].torque = 0.0f;
-        cmd.joint_cmd[i].kp = 20.0f;  // 默认比例增益
-        cmd.joint_cmd[i].kd = 0.5f;   // 默认微分增益
+        cmd.joint_cmd[i].kp = 0.0f;  // 默认比例增益
+        cmd.joint_cmd[i].kd = 0.0f;   // 默认微分增益
     }
-    
+
+    const std::vector<float> neutral_joint_values = {
+        0.0f, -0.8f, 1.5f,  // FL: hip, thigh, calf
+        0.0f, -0.8f, 1.5f,  // FR: hip, thigh, calf
+        0.0f, -1.0f, 1.5f,  // HL: hip, thigh, calf
+        0.0f, -1.0f, 1.5f   // HR: hip, thigh, calf
+    };
+
+
     // 如果动作数据足够，则设置关节位置
     if (action.data.size() >= 12) {
         for (int i = 0; i < 12; ++i) {
-            cmd.joint_cmd[i].position = action.data[i];
+
+            // cmd.joint_cmd[i].position = action.data[i] + neutral_joint_values[i];
+            cmd.joint_cmd[i].position = neutral_joint_values[i];
         }
     }
     
