@@ -17,6 +17,11 @@ void PrintRobotData(const RobotData* robot_data, std::ofstream& file);
 /// @return An Observation object populated with data from RobotData.
 Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data);
 
+/// @brief Applies scaling and noise to observation data to match training conditions.
+/// @param obs The observation data to process.
+/// @return The processed observation data with scaling and noise applied.
+Observation ApplyObservationScalingAndNoise(const Observation& obs);
+
 /// @brief Creates a RobotCmd structure from a set of leg positions.
 /// @param fl_leg_positions The positions of the front left leg.
 /// @param fr_leg_positions The positions of the front right leg.

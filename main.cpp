@@ -136,17 +136,20 @@ int main(int argc, char* argv[]){
       }
       // Convert RobotData to Observation
       Observation observation = ConvertRobotDataToObservation(*robot_data, last_action);
+      
+      // Apply scaling and noise to match training conditions
+      Observation processed_observation = ApplyObservationScalingAndNoise(observation);
 
       // Send the observation and receive the action
-      inference::InferenceResponse response = client->Predict(observation.data, "default", true);
+      inference::InferenceResponse response = client->Predict(processed_observation.data, "default", true);
       
-      // Extract action data from response
+      // Extract action data from response (original model output, not scaled)
       last_action.clear();
       for (int i = 0; i < response.action_size(); ++i) {
           last_action.push_back(response.action(i));
       }
 
-      // Convert the response to RobotAction
+      // Convert the response to RobotAction (with action scaling applied for robot control)
       RobotAction action = ConvertResponseToAction(response);
 
       // Convert the action back to RobotCmd

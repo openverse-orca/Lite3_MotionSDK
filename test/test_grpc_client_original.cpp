@@ -152,33 +152,31 @@ void PrintObservation(const Observation& obs) {
         cout << "  Pitch: " << obs.data[7] << " deg" << endl;
         cout << "  Yaw: " << obs.data[8] << " deg" << endl;
         
-        cout << "Command Values (3 values):" << endl;
+        cout << "Command Values (4 values):" << endl;
         cout << "  Cmd Vx: " << obs.data[9] << " m/s" << endl;
         cout << "  Cmd Vy: " << obs.data[10] << " m/s" << endl;
-        cout << "  Cmd Yaw: " << obs.data[11] << " rad/s" << endl;
+        cout << "  Cmd Vz: " << obs.data[11] << " m/s" << endl;
+        cout << "  Cmd Yaw: " << obs.data[12] << " rad/s" << endl;
         
         cout << "Joint Position Deviations (12 values):" << endl;
         for (int i = 0; i < 12; ++i) {
-            cout << "  J" << i << ": " << obs.data[12 + i] << " rad" << endl;
+            cout << "  J" << i << ": " << obs.data[13 + i] << " rad" << endl;
         }
         
         cout << "Joint Velocities (12 values):" << endl;
         for (int i = 0; i < 12; ++i) {
-            cout << "  J" << i << ": " << obs.data[24 + i] << " rad/s" << endl;
+            cout << "  J" << i << ": " << obs.data[25 + i] << " rad/s" << endl;
         }
         
         cout << "Previous Actions (12 values):" << endl;
         for (int i = 0; i < 12; ++i) {
-            cout << "  A" << i << ": " << obs.data[36 + i] << " rad" << endl;
+            cout << "  A" << i << ": " << obs.data[37 + i] << " rad" << endl;
         }
         
         cout << "Height Map (16 values):" << endl;
         for (int i = 0; i < 16; ++i) {
-            cout << "  H" << i << ": " << obs.data[48 + i] << " m" << endl;
+            cout << "  H" << i << ": " << obs.data[49 + i] << " m" << endl;
         }
-        
-        cout << "Additional Value (1 value):" << endl;
-        cout << "  Extra: " << obs.data[64] << endl;
     } else {
         cout << "Warning: Observation data size is " << obs.data.size() << " (expected 65)" << endl;
     }
@@ -262,12 +260,10 @@ void ValidateDataFormat(const RobotData& robot_data,
     // 验证IMU数据一致性
     bool imu_consistent = true;
     if (obs.data.size() >= 9) {
-        imu_consistent = (abs(obs.data[0] - robot_data.imu.angle_roll) < 1e-6) &&
-                        (abs(obs.data[1] - robot_data.imu.angle_pitch) < 1e-6) &&
-                        (abs(obs.data[2] - robot_data.imu.angle_yaw) < 1e-6) &&
-                        (abs(obs.data[6] - robot_data.imu.acc_x) < 1e-6) &&
-                        (abs(obs.data[7] - robot_data.imu.acc_y) < 1e-6) &&
-                        (abs(obs.data[8] - robot_data.imu.acc_z) < 1e-6);
+        // 检查身体方向数据（欧拉角）
+        imu_consistent = (abs(obs.data[6] - robot_data.imu.angle_roll) < 1e-6) &&
+                        (abs(obs.data[7] - robot_data.imu.angle_pitch) < 1e-6) &&
+                        (abs(obs.data[8] - 0.0f) < 1e-6); // Yaw在训练时恒为0
     }
     
     if (imu_consistent) {
@@ -278,9 +274,18 @@ void ValidateDataFormat(const RobotData& robot_data,
     
     // 验证关节数据一致性
     bool joint_consistent = true;
-    if (obs.data.size() >= 33) {
+    if (obs.data.size() >= 37) {
+        // 检查关节位置偏差数据（相对于中性位置的偏差）
+        const std::vector<float> neutral_joint_values = {
+            0.0f, -0.8f, 1.5f,  // FL: hip, thigh, calf
+            0.0f, -0.8f, 1.5f,  // FR: hip, thigh, calf
+            0.0f, -1.0f, 1.5f,  // HL: hip, thigh, calf
+            0.0f, -1.0f, 1.5f   // HR: hip, thigh, calf
+        };
+        
         for (int i = 0; i < 12; ++i) {
-            if (abs(obs.data[9 + i] - robot_data.joint_data.joint_data[i].position) > 1e-6) {
+            float expected_deviation = robot_data.joint_data.joint_data[i].position - neutral_joint_values[i];
+            if (abs(obs.data[13 + i] - expected_deviation) > 1e-6) {
                 joint_consistent = false;
                 break;
             }
@@ -366,6 +371,15 @@ int main(int argc, char* argv[]) {
         cout << "✓ Observation created successfully" << endl;
         PrintObservation(observation);
         
+        // 步骤3.5: 应用缩放和噪声
+        cout << "Step 3.5: Applying scaling and noise..." << endl;
+        Observation processed_observation = ApplyObservationScalingAndNoise(observation);
+        cout << "✓ Scaling and noise applied successfully" << endl;
+        cout << "=== Processed Observation Data ===" << endl;
+        cout << "Data size: " << processed_observation.data.size() << endl;
+        cout << "Note: Values have been scaled and noise has been added to match training conditions" << endl;
+        cout << endl;
+        
         // 步骤4: 创建GRPC客户端并连接
         cout << "Step 4: Creating GRPC client and connecting..." << endl;
         std::unique_ptr<GrpcClient> client = std::make_unique<GrpcClient>(server_address);
@@ -380,7 +394,7 @@ int main(int argc, char* argv[]) {
         
         // 步骤5: 发送推理请求
         cout << "Step 5: Sending inference request..." << endl;
-        inference::InferenceResponse response = client->Predict(observation.data, "stand_still", true);
+        inference::InferenceResponse response = client->Predict(processed_observation.data, "stand_still", true);
         
         if (!response.success()) {
             cout << "✗ Inference request failed: " << response.error_message() << endl;

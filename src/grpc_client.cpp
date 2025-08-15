@@ -3,10 +3,15 @@
 #include <iostream>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
+#include <cstdlib>
+#include <ctime>
 
 // 全局速度计算器实例
 static VelocityCalculator velocity_calculator(10, 0.1f);
 static float last_timestamp = 0.0f;
+
+// 初始化随机数种子
+static bool random_initialized = false;
 
 GrpcClient::GrpcClient(const std::string& server_address) 
     : server_address_(server_address), connected_(false) {
@@ -135,9 +140,10 @@ Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std
     obs.data.push_back(robot_data.imu.angle_pitch);
     obs.data.push_back(0.0f); // 不使用 robot_data.imu.angle_yaw，因为这是全局坐标，此处在训练的时候恒为0 
     
-    // 4. 命令值 (这里用零向量，实际应该从外部传入) - 3个值
+    // 4. 命令值 (这里用零向量，实际应该从外部传入) - 4个值
     obs.data.push_back(0.0f);  // 线速度命令 x
     obs.data.push_back(0.0f);  // 线速度命令 y
+    obs.data.push_back(0.0f);  // 线速度命令 z
     obs.data.push_back(0.0f);  // 角速度命令 z
     
     // 5. 关节位置相对于中性位置的偏差 (12个值)
@@ -175,10 +181,169 @@ Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std
         obs.data.push_back(0.0f);
     }
     
-    // 9. 额外的值（可能是achieved_goal或desired_goal，或者其他任务相关的值）
-    obs.data.push_back(0.0f);  // 添加第65个值
-    
     return obs;
+}
+
+// 配置参数，对应Python代码中的LeggedObsConfig
+struct LeggedObsConfig {
+    struct Scale {
+        float lin_vel = 2.0f;
+        float ang_vel = 0.25f;
+        float qpos = 1.0f;
+        float qvel = 0.05f;
+        float height = 5.0f;
+    } scale;
+    
+    struct Noise {
+        float noise_level = 1.0f;
+        float qpos = 0.01f;
+        float qvel = 1.5f;
+        float lin_vel = 0.1f;
+        float ang_vel = 0.2f;
+        float orientation = 0.05f;
+        float height = 0.1f;
+    } noise;
+};
+
+// 全局配置实例
+static LeggedObsConfig g_legged_obs_config;
+
+/// @brief 生成[-1, 1]范围内的均匀分布随机数
+float generateUniformNoise() {
+    if (!random_initialized) {
+        srand(static_cast<unsigned int>(time(nullptr)));
+        random_initialized = true;
+    }
+    return (static_cast<float>(rand()) / RAND_MAX) * 2.0f - 1.0f;
+}
+
+/// @brief 获取缩放向量，对应Python代码中的_get_obs_scale_vec
+std::vector<float> getObsScaleVec() {
+    std::vector<float> scale_vec;
+    
+    // 身体线速度缩放 (3个值)
+    for (int i = 0; i < 3; ++i) {
+        scale_vec.push_back(g_legged_obs_config.scale.lin_vel);
+    }
+    
+    // 身体角速度缩放 (3个值)
+    for (int i = 0; i < 3; ++i) {
+        scale_vec.push_back(g_legged_obs_config.scale.ang_vel);
+    }
+    
+    // 身体方向缩放 (3个值，无缩放)
+    for (int i = 0; i < 3; ++i) {
+        scale_vec.push_back(1.0f);
+    }
+    
+    // 命令值缩放 (4个值)
+    scale_vec.push_back(g_legged_obs_config.scale.lin_vel);  // Cmd Vx
+    scale_vec.push_back(g_legged_obs_config.scale.lin_vel);  // Cmd Vy
+    scale_vec.push_back(g_legged_obs_config.scale.lin_vel);  // Cmd Vz
+    scale_vec.push_back(g_legged_obs_config.scale.ang_vel);  // Cmd Yaw
+    
+    // 关节位置偏差缩放 (12个值)
+    for (int i = 0; i < 12; ++i) {
+        scale_vec.push_back(g_legged_obs_config.scale.qpos);
+    }
+    
+    // 关节速度缩放 (12个值)
+    for (int i = 0; i < 12; ++i) {
+        scale_vec.push_back(g_legged_obs_config.scale.qvel);
+    }
+    
+    // 动作缩放 (12个值，无缩放)
+    for (int i = 0; i < 12; ++i) {
+        scale_vec.push_back(1.0f);
+    }
+    
+    // 身体高度缩放 (16个值)
+    for (int i = 0; i < 16; ++i) {
+        scale_vec.push_back(g_legged_obs_config.scale.height);
+    }
+    
+    return scale_vec;
+}
+
+/// @brief 获取噪声向量，对应Python代码中的_get_noise_scale_vec
+std::vector<float> getNoiseScaleVec() {
+    std::vector<float> noise_vec;
+    
+    // 身体线速度噪声 (3个值)
+    for (int i = 0; i < 3; ++i) {
+        noise_vec.push_back(g_legged_obs_config.noise.noise_level * 
+                           g_legged_obs_config.noise.lin_vel * 
+                           g_legged_obs_config.scale.lin_vel);
+    }
+    
+    // 身体角速度噪声 (3个值)
+    for (int i = 0; i < 3; ++i) {
+        noise_vec.push_back(g_legged_obs_config.noise.noise_level * 
+                           g_legged_obs_config.noise.ang_vel * 
+                           g_legged_obs_config.scale.ang_vel);
+    }
+    
+    // 身体方向噪声 (3个值)
+    for (int i = 0; i < 3; ++i) {
+        noise_vec.push_back(g_legged_obs_config.noise.noise_level * 
+                           g_legged_obs_config.noise.orientation);
+    }
+    
+    // 命令值噪声 (4个值，无噪声)
+    for (int i = 0; i < 4; ++i) {
+        noise_vec.push_back(0.0f);
+    }
+    
+    // 关节位置偏差噪声 (12个值)
+    for (int i = 0; i < 12; ++i) {
+        noise_vec.push_back(g_legged_obs_config.noise.noise_level * 
+                           g_legged_obs_config.noise.qpos * 
+                           g_legged_obs_config.scale.qpos);
+    }
+    
+    // 关节速度噪声 (12个值)
+    for (int i = 0; i < 12; ++i) {
+        noise_vec.push_back(g_legged_obs_config.noise.noise_level * 
+                           g_legged_obs_config.noise.qvel * 
+                           g_legged_obs_config.scale.qvel);
+    }
+    
+    // 动作噪声 (12个值，无噪声)
+    for (int i = 0; i < 12; ++i) {
+        noise_vec.push_back(0.0f);
+    }
+    
+    // 身体高度噪声 (16个值)
+    for (int i = 0; i < 16; ++i) {
+        noise_vec.push_back(g_legged_obs_config.noise.noise_level * 
+                           g_legged_obs_config.noise.height * 
+                           g_legged_obs_config.scale.height);
+    }
+    
+    return noise_vec;
+}
+
+Observation ApplyObservationScalingAndNoise(const Observation& obs) {
+    Observation processed_obs;
+    
+    if (obs.data.size() != 65) {
+        std::cerr << "Warning: Observation data size is " << obs.data.size() 
+                  << " (expected 65), skipping scaling and noise" << std::endl;
+        return obs;
+    }
+    
+    // 获取缩放和噪声向量
+    std::vector<float> scale_vec = getObsScaleVec();
+    std::vector<float> noise_vec = getNoiseScaleVec();
+    
+    // 应用缩放和噪声
+    for (size_t i = 0; i < obs.data.size(); ++i) {
+        float scaled_value = obs.data[i] * scale_vec[i];
+        float noise = noise_vec[i] * generateUniformNoise();
+        processed_obs.data.push_back(scaled_value + noise);
+    }
+    
+    return processed_obs;
 }
 
 RobotCmd CreateRobotCmd(const RobotAction& action) {
@@ -206,10 +371,37 @@ RobotCmd CreateRobotCmd(const RobotAction& action) {
 RobotAction ConvertResponseToAction(const inference::InferenceResponse& response) {
     RobotAction action;
     
+    // 定义动作缩放因子，对应12个关节
+    // 顺序：FL_HipX, FL_HipY, FL_Knee, FR_HipX, FR_HipY, FR_Knee, HL_HipX, HL_HipY, HL_Knee, HR_HipX, HR_HipY, HR_Knee
+    const std::vector<float> action_scale = {
+        0.2f,    // FL_HipX_joint: range="-0.523 0.523", neutral=0.0
+        1.0f,    // FL_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.8f,    // FL_Knee_joint: range="0.524 2.792", neutral=1.8
+        
+        0.2f,    // FR_HipX_joint: range="-0.523 0.523", neutral=0.0
+        1.0f,    // FR_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.8f,    // FR_Knee_joint: range="0.524 2.792", neutral=1.8
+        
+        0.2f,    // HL_HipX_joint: range="-0.523 0.523", neutral=0.0
+        1.0f,    // HL_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.8f,    // HL_Knee_joint: range="0.524 2.792", neutral=1.8
+        
+        0.2f,    // HR_HipX_joint: range="-0.523 0.523", neutral=0.0
+        1.0f,    // HR_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.8f,    // HR_Knee_joint: range="0.524 2.792", neutral=1.8
+    };
+    
     if (response.success()) {
-        // 将响应中的动作数据复制到RobotAction结构
+        // 将响应中的动作数据复制到RobotAction结构，并应用缩放
         for (int i = 0; i < response.action_size(); ++i) {
-            action.data.push_back(response.action(i));
+            float scaled_action = response.action(i);
+            
+            // 应用缩放因子（如果索引在范围内）
+            if (i < action_scale.size()) {
+                scaled_action *= action_scale[i];
+            }
+            
+            action.data.push_back(scaled_action);
         }
     } else {
         std::cerr << "Inference failed: " << response.error_message() << std::endl;

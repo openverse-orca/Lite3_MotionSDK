@@ -128,7 +128,7 @@ Step 6: Converting RobotAction to RobotCmd...
 
 Step 7: Validating data format...
 === Data Format Validation ===
-✓ Observation data size is correct (45 values)
+✓ Observation data size is correct (65 values)
 ✓ Action data size is sufficient (≥12 values)
 ✓ IMU data consistency verified
 ✓ Joint position data consistency verified
@@ -146,11 +146,16 @@ All steps passed! The GRPC inference pipeline is working correctly.
 - **接触力数据**: 12个接触力值
 
 ### Observation格式
-- **总大小**: 45个float值
-- **IMU数据**: 索引0-8（9个值）
-- **关节位置**: 索引9-20（12个值）
-- **关节速度**: 索引21-32（12个值）
-- **接触力**: 索引33-44（12个值）
+- **总大小**: 65个float值
+- **身体线速度**: 索引0-2（3个值，使用VelocityCalculator计算）
+- **身体角速度**: 索引3-5（3个值，从IMU获取）
+- **身体方向**: 索引6-8（3个值，欧拉角，Yaw恒为0）
+- **命令值**: 索引9-12（4个值，当前为0）
+- **关节位置偏差**: 索引13-24（12个值，相对于中性位置的偏差）
+- **关节速度**: 索引25-36（12个值）
+- **上一时刻动作**: 索引37-48（12个值）
+- **身体高度**: 索引49-64（16个值，当前为0）
+
 
 ### RobotAction格式
 - **总大小**: 12个float值（每个关节的目标位置）
@@ -177,14 +182,14 @@ Please make sure the inference server is running on localhost:50051
 
 ### 数据格式错误
 ```
-✗ Observation data size is incorrect: X (expected 45)
+✗ Observation data size is incorrect: X (expected 65)
 ```
 **解决方案**: 检查`ConvertRobotDataToObservation`函数的实现。
 
 ## 注意事项
 
 1. 测试程序使用模拟数据，不会控制真实机器人
-2. 确保推理服务器支持45维的观察输入和12维的动作输出
+2. 确保推理服务器支持65维的观察输入和12维的动作输出
 3. 测试程序会验证数据一致性，确保转换过程正确
 4. 如果服务器未运行，程序会优雅地退出并显示错误信息
 
