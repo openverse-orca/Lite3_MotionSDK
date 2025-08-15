@@ -14,6 +14,7 @@
 #include "motion_spline.h"
 #include "utils.h"
 #include "grpc_client.h"
+#include "data_logger.h"
 #include <memory>
 #include <iostream>
 #include <time.h>
@@ -65,8 +66,15 @@ int main(int argc, char* argv[]){
     return -1;
   }
   
+  // Initialize data logger
+  std::unique_ptr<DataLogger> data_logger = std::make_unique<DataLogger>("robot_data");
+  if (!data_logger->Initialize()) {
+    std::cerr << "Failed to initialize data logger. Exiting..." << std::endl;
+    return -1;
+  }
+  
   robot_data_recv->StartWork();
-  set_timer.TimeInit(1);                                                      ///< Timer initialization, input: cycle; Unit: ms
+  set_timer.TimeInit(5);                                                      ///< Timer initialization, input: cycle; Unit: ms
   send_cmd->RobotStateInit();                                                 ///< Return all joints to zero and gain control
 
   start_time = set_timer.GetCurrentTime();                                    ///< Obtain time for algorithm usage
@@ -77,6 +85,9 @@ int main(int argc, char* argv[]){
   double hl_leg_positions[3];
   double hr_leg_positions[3];
 
+
+  int time_step = 5;
+
   int time_tick = 0;
   while(1){
     if (set_timer.TimerInterrupt() == true){                                  ///< Time interrupt flag
@@ -85,7 +96,7 @@ int main(int argc, char* argv[]){
     now_time = set_timer.GetIntervalTime(start_time);                         ///< Get the current time
     time_tick++;
     // stand up first
-    if(time_tick < 5000){
+    if(time_tick < 5000 / time_step){
       // 
       cout << "try to pre stand" << endl;
       fl_leg_positions[0] = 0 * kDegree2Radian;  
@@ -104,11 +115,11 @@ int main(int argc, char* argv[]){
 
       motion_spline.Motion(robot_joint_cmd,now_time,*robot_data, 45, 0.7, 1.0);    
     } 
-    if(time_tick == 5000){
+    if(time_tick == 5000 / time_step){
       motion_spline.GetInitData(robot_data->joint_data,now_time);         ///< Obtain all joint states once before each stage (action)
     }
     // if(time_tick >= 5000){
-    if(time_tick >= 5000 && time_tick < 10000){
+    if(time_tick >= 5000 / time_step && time_tick < 10000 / time_step){
       // 
       cout << "try to stand" << endl;
       fl_leg_positions[0] = 0 * kDegree2Radian;  
@@ -128,7 +139,7 @@ int main(int argc, char* argv[]){
       motion_spline.Motion(robot_joint_cmd,now_time,*robot_data, 45, 0.7, 1.5); 
     }
     // compute action from neural network every 0.02s (50Hz)   4 * 0.005
-    if (time_tick % 20 == 0 && time_tick >= 10000) {
+    if (time_tick % (20 / time_step) == 0 && time_tick >= 10000 / time_step) {
 
       static vector<float> last_action;
       if (last_action.empty()) {
@@ -136,6 +147,9 @@ int main(int argc, char* argv[]){
       }
       // Convert RobotData to Observation
       Observation observation = ConvertRobotDataToObservation(*robot_data, last_action);
+
+      // Save observation data to file
+      data_logger->SaveObservation(time_tick, observation);
       
       // Apply scaling and noise to match training conditions
       Observation processed_observation = ApplyObservationScalingAndNoise(observation);
@@ -149,7 +163,8 @@ int main(int argc, char* argv[]){
           last_action.push_back(response.action(i));
       }
 
-      cout << "row_action: " << last_action[0] << " " << last_action[1] << " " << last_action[2] << " " << last_action[3] << " " << last_action[4] << " " << last_action[5] << " " << last_action[6] << " " << last_action[7] << " " << last_action[8] << " " << last_action[9] << " " << last_action[10] << " " << last_action[11] << endl;
+      // Save raw action data to file
+      data_logger->SaveRawAction(time_tick, last_action);
 
       // Convert the response to RobotAction (with action scaling applied for robot control)
       RobotAction action = ConvertResponseToAction(response);
@@ -157,7 +172,8 @@ int main(int argc, char* argv[]){
       // Convert the action back to RobotCmd
       robot_joint_cmd_nn = CreateRobotCmd(action);
 
-      cout << "action: " << action.data[0] << " " << action.data[1] << " " << action.data[2] << " " << action.data[3] << " " << action.data[4] << " " << action.data[5] << " " << action.data[6] << " " << action.data[7] << " " << action.data[8] << " " << action.data[9] << " " << action.data[10] << " " << action.data[11] << endl;
+      // Save processed action data to file
+      data_logger->SaveAction(time_tick, action);
 
       fl_leg_positions[0] = robot_joint_cmd_nn.fl_leg[0].position;
       fl_leg_positions[1] = robot_joint_cmd_nn.fl_leg[1].position;
@@ -173,7 +189,7 @@ int main(int argc, char* argv[]){
       hr_leg_positions[2] = robot_joint_cmd_nn.hr_leg[2].position;
     }
     // // do spline interpolation
-    if (time_tick >= 10000) {
+    if (time_tick >= 10000 / time_step) {
       robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 25, 0.5);
     }
     if(is_message_updated_){ 
@@ -205,5 +221,11 @@ int main(int argc, char* argv[]){
     // file.close();
  
   }
+  
+  // Close data logger before exiting
+  if (data_logger) {
+    data_logger->Close();
+  }
+  
   return 0;
 } 

@@ -8,6 +8,7 @@
 #include <vector>
 #include <cstring>
 #include <cmath>
+#include <algorithm>
 #include "robot_types.h"
 #include "grpc_client.h"
 #include "utils.h"
@@ -37,8 +38,8 @@ RobotData CreateMockRobotData() {
     // 设置关节数据 - 模拟站立姿态
     // 前左腿 (FL)
     robot_data.joint_data.fl_leg[0].position = 0.0f;        // 髋关节
-    robot_data.joint_data.fl_leg[1].position = -0.995f;     // 大腿关节 (-57度)
-    robot_data.joint_data.fl_leg[2].position = 1.798f;      // 小腿关节 (103度)
+    robot_data.joint_data.fl_leg[1].position = -0.8f;     // 大腿关节 (-57度)
+    robot_data.joint_data.fl_leg[2].position = 1.5f;      // 小腿关节 (103度)
     robot_data.joint_data.fl_leg[0].velocity = 0.0f;
     robot_data.joint_data.fl_leg[1].velocity = 0.0f;
     robot_data.joint_data.fl_leg[2].velocity = 0.0f;
@@ -51,8 +52,8 @@ RobotData CreateMockRobotData() {
     
     // 前右腿 (FR) - 与前左腿对称
     robot_data.joint_data.fr_leg[0].position = 0.0f;
-    robot_data.joint_data.fr_leg[1].position = -0.995f;
-    robot_data.joint_data.fr_leg[2].position = 1.798f;
+    robot_data.joint_data.fr_leg[1].position = -0.8f;
+    robot_data.joint_data.fr_leg[2].position = 1.5f;
     robot_data.joint_data.fr_leg[0].velocity = 0.0f;
     robot_data.joint_data.fr_leg[1].velocity = 0.0f;
     robot_data.joint_data.fr_leg[2].velocity = 0.0f;
@@ -65,8 +66,8 @@ RobotData CreateMockRobotData() {
     
     // 后左腿 (HL) - 与前左腿相同
     robot_data.joint_data.hl_leg[0].position = 0.0f;
-    robot_data.joint_data.hl_leg[1].position = -0.995f;
-    robot_data.joint_data.hl_leg[2].position = 1.798f;
+    robot_data.joint_data.hl_leg[1].position = -1.0f;
+    robot_data.joint_data.hl_leg[2].position = 1.5f;
     robot_data.joint_data.hl_leg[0].velocity = 0.0f;
     robot_data.joint_data.hl_leg[1].velocity = 0.0f;
     robot_data.joint_data.hl_leg[2].velocity = 0.0f;
@@ -79,8 +80,8 @@ RobotData CreateMockRobotData() {
     
     // 后右腿 (HR) - 与前右腿相同
     robot_data.joint_data.hr_leg[0].position = 0.0f;
-    robot_data.joint_data.hr_leg[1].position = -0.995f;
-    robot_data.joint_data.hr_leg[2].position = 1.798f;
+    robot_data.joint_data.hr_leg[1].position = -1.0f;
+    robot_data.joint_data.hr_leg[2].position = 1.5f;
     robot_data.joint_data.hr_leg[0].velocity = 0.0f;
     robot_data.joint_data.hr_leg[1].velocity = 0.0f;
     robot_data.joint_data.hr_leg[2].velocity = 0.0f;
@@ -112,20 +113,20 @@ std::vector<float> CreateMockActionData() {
     // 设置一些模拟的动作数据（关节位置命令）
     // 这些值应该与neutral_joint_values对应
     action_data[0] = 0.0f;   // FL_HipX_joint
-    action_data[1] = -0.8f;  // FL_HipY_joint
-    action_data[2] = 1.5f;   // FL_Knee_joint
+    action_data[1] = 0.0f;  // FL_HipY_joint
+    action_data[2] = 0.0f;   // FL_Knee_joint
     
     action_data[3] = 0.0f;   // FR_HipX_joint
-    action_data[4] = -0.8f;  // FR_HipY_joint
-    action_data[5] = 1.5f;   // FR_Knee_joint
+    action_data[4] = 0.0f;  // FR_HipY_joint
+    action_data[5] = 0.0f;   // FR_Knee_joint
     
     action_data[6] = 0.0f;   // HL_HipX_joint
-    action_data[7] = -1.0f;  // HL_HipY_joint
-    action_data[8] = 1.5f;   // HL_Knee_joint
+    action_data[7] = 0.0f;  // HL_HipY_joint
+    action_data[8] = 0.0f;   // HL_Knee_joint
     
     action_data[9] = 0.0f;   // HR_HipX_joint
-    action_data[10] = -1.0f; // HR_HipY_joint
-    action_data[11] = 1.5f;  // HR_Knee_joint
+    action_data[10] = 0.0f; // HR_HipY_joint
+    action_data[11] = 0.0f;  // HR_Knee_joint
     
     return action_data;
 }
@@ -369,15 +370,7 @@ int main(int argc, char* argv[]) {
         cout << "Step 3: Converting RobotData to Observation..." << endl;
         Observation observation = ConvertRobotDataToObservation(robot_data, action_data);
         cout << "✓ Observation created successfully" << endl;
-        PrintObservation(observation);
-        
-        // 步骤3.5: 应用缩放和噪声
-        cout << "Step 3.5: Applying scaling and noise..." << endl;
-        Observation processed_observation = ApplyObservationScalingAndNoise(observation);
-        cout << "✓ Scaling and noise applied successfully" << endl;
-        cout << "=== Processed Observation Data ===" << endl;
-        cout << "Data size: " << processed_observation.data.size() << endl;
-        cout << "Note: Values have been scaled and noise has been added to match training conditions" << endl;
+        cout << "Note: Observation data will be processed with new noise for each iteration" << endl;
         cout << endl;
         
         // 步骤4: 创建GRPC客户端并连接
@@ -392,36 +385,109 @@ int main(int argc, char* argv[]) {
         cout << "✓ Successfully connected to GRPC server" << endl;
         cout << endl;
         
-        // 步骤5: 发送推理请求
-        cout << "Step 5: Sending inference request..." << endl;
-        inference::InferenceResponse response = client->Predict(processed_observation.data, "stand_still", true);
+        // 步骤5: 循环发送100次推理请求并收集统计数据
+        cout << "Step 5: Sending 100 inference requests with different noise each time..." << endl;
+        const int num_iterations = 100;
+        std::vector<std::vector<float>> all_actions;  // 存储所有返回的action数据
         
-        if (!response.success()) {
-            cout << "✗ Inference request failed: " << response.error_message() << endl;
-            return -1;
+        for (int i = 0; i < num_iterations; ++i) {
+            if (i % 10 == 0) {
+                cout << "  Progress: " << i << "/" << num_iterations << " requests sent" << endl;
+            }
+            
+            // 每次迭代都生成新的噪声
+            Observation processed_observation = ApplyObservationScalingAndNoise(observation);
+            
+            inference::InferenceResponse response = client->Predict(processed_observation.data, "stand_still", true);
+            
+            if (!response.success()) {
+                cout << "✗ Inference request " << i << " failed: " << response.error_message() << endl;
+                continue;
+            }
+            
+            RobotAction action = ConvertResponseToAction(response);
+            all_actions.push_back(action.data);
         }
-        cout << "✓ Inference request successful" << endl;
-        cout << "  - Response action size: " << response.action_size() << endl;
+        
+        cout << "✓ Successfully collected " << all_actions.size() << " action responses" << endl;
         cout << endl;
         
-        // 步骤6: 转换为RobotAction
-        cout << "Step 6: Converting response to RobotAction..." << endl;
-        RobotAction action = ConvertResponseToAction(response);
-        cout << "✓ RobotAction created successfully" << endl;
-        PrintRobotAction(action);
+        // 步骤6: 计算统计信息
+        cout << "Step 6: Calculating statistics..." << endl;
+        if (all_actions.empty()) {
+            cout << "✗ No successful responses to analyze" << endl;
+            return -1;
+        }
         
-        // 步骤7: 转换为RobotCmd
-        cout << "Step 7: Converting RobotAction to RobotCmd..." << endl;
-        RobotCmd robot_cmd = CreateRobotCmd(action);
-        cout << "✓ RobotCmd created successfully" << endl;
-        PrintRobotCmd(robot_cmd);
+        const int num_joints = 12;  // 12个关节
+        const int num_samples = all_actions.size();
         
-        // 步骤8: 验证数据格式
-        cout << "Step 8: Validating data format..." << endl;
-        ValidateDataFormat(robot_data, observation, action, robot_cmd);
+        cout << "=== Action Statistics (based on " << num_samples << " samples) ===" << endl;
+        
+        // 关节名称
+        const char* joint_names[] = {
+            "FL_HipX", "FL_HipY", "FL_Knee",
+            "FR_HipX", "FR_HipY", "FR_Knee", 
+            "HL_HipX", "HL_HipY", "HL_Knee",
+            "HR_HipX", "HR_HipY", "HR_Knee"
+        };
+        
+        for (int joint = 0; joint < num_joints; ++joint) {
+            std::vector<float> joint_values;
+            joint_values.reserve(num_samples);
+            
+            // 收集该关节的所有值
+            for (const auto& action : all_actions) {
+                if (joint < action.size()) {
+                    joint_values.push_back(action[joint]);
+                }
+            }
+            
+            if (joint_values.empty()) {
+                cout << joint_names[joint] << ": No data available" << endl;
+                continue;
+            }
+            
+            // 排序用于计算中位数
+            std::sort(joint_values.begin(), joint_values.end());
+            
+            // 计算统计值
+            float sum = 0.0f;
+            float min_val = joint_values[0];
+            float max_val = joint_values.back();
+            
+            for (float val : joint_values) {
+                sum += val;
+            }
+            float mean = sum / joint_values.size();
+            
+            // 计算标准差
+            float variance = 0.0f;
+            for (float val : joint_values) {
+                variance += (val - mean) * (val - mean);
+            }
+            float std_dev = sqrt(variance / joint_values.size());
+            
+            // 计算中位数
+            float median;
+            if (joint_values.size() % 2 == 0) {
+                median = (joint_values[joint_values.size()/2 - 1] + joint_values[joint_values.size()/2]) / 2.0f;
+            } else {
+                median = joint_values[joint_values.size()/2];
+            }
+            
+            cout << joint_names[joint] << ":" << endl;
+            cout << "  Mean: " << mean << " rad" << endl;
+            cout << "  Std Dev: " << std_dev << " rad" << endl;
+            cout << "  Median: " << median << " rad" << endl;
+            cout << "  Min: " << min_val << " rad" << endl;
+            cout << "  Max: " << max_val << " rad" << endl;
+            cout << "  Range: " << (max_val - min_val) << " rad" << endl;
+            cout << endl;
+        }
         
         cout << "=== Test Completed Successfully ===" << endl;
-        cout << "All steps passed! The GRPC inference pipeline is working correctly." << endl;
+        cout << "Statistics analysis completed for " << num_samples << " inference requests." << endl;
         
     } catch (const std::exception& e) {
         cout << "✗ Exception occurred: " << e.what() << endl;

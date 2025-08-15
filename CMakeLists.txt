@@ -78,6 +78,9 @@ foreach(VAR ${SRC_DIR_LIST})
   set(SRC_LIST ${RCS_SRC_LIST} ${TEMP})
 endforeach(VAR)
 
+# Add data_logger.cpp to the source list
+list(APPEND SRC_LIST "src/data_logger.cpp")
+
 # 在 include_directories 中添加 OpenSSL 头文件路径
 include_directories(
     ./include/

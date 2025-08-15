@@ -369,7 +369,6 @@ RobotCmd CreateRobotCmd(const RobotAction& action) {
     // 如果动作数据足够，则设置关节位置
     if (action.data.size() >= 12) {
         for (int i = 0; i < 12; ++i) {
-
             // cmd.joint_cmd[i].position = action.data[i] + neutral_joint_values[i];
             cmd.joint_cmd[i].position = neutral_joint_values[i];
         }
