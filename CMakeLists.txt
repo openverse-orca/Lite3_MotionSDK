@@ -46,14 +46,27 @@ set(_SSL_SSL OpenSSL::SSL)
 set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
 
 # Proto file
-get_filename_component(hw_proto "realenv.proto" ABSOLUTE)
+get_filename_component(hw_proto "include/proto/inference.proto" ABSOLUTE)
 get_filename_component(hw_proto_path "${hw_proto}" PATH)
 
 # Generated sources
-set(hw_proto_srcs "build/realenv.pb.cc")
-set(hw_proto_hdrs "build/realenv.pb.h")
-set(hw_grpc_srcs "build/realenv.grpc.pb.cc")
-set(hw_grpc_hdrs "build/realenv.grpc.pb.h")
+set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/inference.pb.cc")
+set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/inference.pb.h")
+set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/inference.grpc.pb.cc")
+set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/inference.grpc.pb.h")
+
+# Generate protobuf and gRPC files
+add_custom_command(
+    OUTPUT ${hw_proto_srcs} ${hw_proto_hdrs} ${hw_grpc_srcs} ${hw_grpc_hdrs}
+    COMMAND ${_PROTOBUF_PROTOC}
+        --grpc_out=${CMAKE_CURRENT_BINARY_DIR}
+        --cpp_out=${CMAKE_CURRENT_BINARY_DIR}
+        --plugin=protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}
+        -I${hw_proto_path}
+        ${hw_proto}
+    DEPENDS ${hw_proto}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
 set(CMAKE_BUILD_TYPE Release)
 set(SRC_DIR_LIST "." src)
@@ -84,19 +97,39 @@ add_executable(${PROJECT_NAME}
   ${hw_proto_srcs}
   ${hw_grpc_srcs}
 )
+
+# 添加测试程序
+add_executable(test_grpc_client
+  "test/test_grpc_client.cpp"
+  ${SRC_LIST}
+  ${hw_proto_srcs}
+  ${hw_grpc_srcs}
+)
+
 # 链接动态库target_link_libraries(myprogram /path/to/lib/libfoo.so)
 
-
- # 外部用cmake . -DBUILD_PLATFORM=arm进行值传入，便可以执行不同的逻辑
+# 外部用cmake . -DBUILD_PLATFORM=arm进行值传入，便可以执行不同的逻辑
 if (BUILD_PLATFORM STREQUAL arm)
   target_link_libraries(${PROJECT_NAME} libdeeprobotics_legged_sdk_aarch64.so)
+  target_link_libraries(test_grpc_client libdeeprobotics_legged_sdk_aarch64.so)
 else()
   target_link_libraries(${PROJECT_NAME} libdeeprobotics_legged_sdk_x86_64.so)
+  target_link_libraries(test_grpc_client libdeeprobotics_legged_sdk_x86_64.so)
 endif()
 
 target_link_libraries(${PROJECT_NAME} -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
+target_link_libraries(test_grpc_client -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
 
 target_link_libraries(${PROJECT_NAME}
+    ${_REFLECTION}
+    ${_SSL_CRYPTO}
+    ${_SSL_SSL}
+    ${_GRPC_GRPCPP}
+    ${_GRPC_GRPC}
+    ${_PROTOBUF_LIBPROTOBUF}
+)
+
+target_link_libraries(test_grpc_client
     ${_REFLECTION}
     ${_SSL_CRYPTO}
     ${_SSL_SSL}

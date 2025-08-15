@@ -14,6 +14,7 @@
 #include "motion_spline.h"
 #include "utils.h"
 #include "grpc_client.h"
+#include <memory>
 #include <iostream>
 #include <time.h>
 #include <string.h>
@@ -35,8 +36,6 @@ using namespace std;
 
 
 int main(int argc, char* argv[]){
-  // Create a client connected to the server
-  PolicyServiceClient client(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials()));
 
   DRTimer set_timer;
   double now_time,start_time;
@@ -52,6 +51,20 @@ int main(int argc, char* argv[]){
   MotionSpline motion_spline;                                            ///< Demos for testing can be deleted by yourself
   RobotData *robot_data = &robot_data_recv->GetState();
 
+  // Initialize gRPC client
+  std::string server_address = "localhost:50051";  // 默认服务器地址，可以通过命令行参数修改
+  if (argc > 1) {
+    server_address = argv[1];
+  }
+  
+  std::unique_ptr<GrpcClient> client = std::make_unique<GrpcClient>(server_address);
+  
+  // Connect to gRPC server
+  if (!client->Connect()) {
+    std::cerr << "Failed to connect to gRPC server. Exiting..." << std::endl;
+    return -1;
+  }
+  
   robot_data_recv->StartWork();
   set_timer.TimeInit(1);                                                      ///< Timer initialization, input: cycle; Unit: ms
   send_cmd->RobotStateInit();                                                 ///< Return all joints to zero and gain control
@@ -118,9 +131,11 @@ int main(int argc, char* argv[]){
     if (time_tick % 20 == 0 && time_tick >= 10000) {
       cout << "try to get action from neural network" << endl;
       // Convert RobotData to Observation
-      realenv::Observation observation = ConvertRobotDataToObservation(*robot_data);
+      Observation observation = ConvertRobotDataToObservation(*robot_data);
       // Send the observation and receive the action
-      realenv::Action action = client.GetAction(observation);
+      inference::InferenceResponse response = client->Predict(observation.data, "default", true);
+      // Convert the response to RobotAction
+      RobotAction action = ConvertResponseToAction(response);
       // Convert the action back to RobotCmd
       robot_joint_cmd_nn = CreateRobotCmd(action);
 
