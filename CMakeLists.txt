@@ -100,7 +100,7 @@ add_executable(${PROJECT_NAME}
 
 # 添加测试程序
 add_executable(test_grpc_client
-  "test/test_grpc_client.cpp"
+  "test/test_grpc_client_original.cpp"
   ${SRC_LIST}
   ${hw_proto_srcs}
   ${hw_grpc_srcs}

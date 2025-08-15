@@ -1,5 +1,32 @@
 # How to use this repo to run neural nets on Lite3
-We use vcpkg to mange grpc and protoc.
+
+## Quick Start (Recommended)
+
+### 1. Build the Project
+```bash
+# Build the entire project
+./build.sh
+
+# Or build manually
+mkdir -p build && cd build && cmake .. && make -j$(nproc)
+```
+
+### 2. Test GRPC Connection
+```bash
+# Run full test (detailed output)
+./test/run_grpc_test.sh
+
+# Run quick test (concise output)
+./test/quick_test.sh
+```
+
+### 3. Run the Main Program
+```bash
+cd build && export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH && ./Lite_motion
+```
+
+## Legacy Build Method (vcpkg)
+We use vcpkg to manage grpc and protoc.
 '''
 git clone https://github.com/microsoft/vcpkg.git
 ./bootstrap-vcpkg.sh -disableMetrics   # if linux
@@ -7,7 +34,7 @@ cd vcpkg
 ./vcpkg install grpc && ./vcpkg install protobuf
 ./vcpkg integrate install
 '''
-Generate prote related files
+Generate proto related files
 '''
 cd ../Lite3_MotionSDK
 ./install.sh

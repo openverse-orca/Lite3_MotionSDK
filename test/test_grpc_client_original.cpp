@@ -104,38 +104,83 @@ RobotData CreateMockRobotData() {
     return robot_data;
 }
 
+/// @brief 创建模拟的action数据用于测试
+/// @return 包含测试数据的action向量
+std::vector<float> CreateMockActionData() {
+    std::vector<float> action_data(12, 0.0f);
+    
+    // 设置一些模拟的动作数据（关节位置命令）
+    // 这些值应该与neutral_joint_values对应
+    action_data[0] = 0.0f;   // FL_HipX_joint
+    action_data[1] = -0.8f;  // FL_HipY_joint
+    action_data[2] = 1.5f;   // FL_Knee_joint
+    
+    action_data[3] = 0.0f;   // FR_HipX_joint
+    action_data[4] = -0.8f;  // FR_HipY_joint
+    action_data[5] = 1.5f;   // FR_Knee_joint
+    
+    action_data[6] = 0.0f;   // HL_HipX_joint
+    action_data[7] = -1.0f;  // HL_HipY_joint
+    action_data[8] = 1.5f;   // HL_Knee_joint
+    
+    action_data[9] = 0.0f;   // HR_HipX_joint
+    action_data[10] = -1.0f; // HR_HipY_joint
+    action_data[11] = 1.5f;  // HR_Knee_joint
+    
+    return action_data;
+}
+
 /// @brief 打印Observation数据
 /// @param obs 观察数据
 void PrintObservation(const Observation& obs) {
     cout << "=== Observation Data ===" << endl;
     cout << "Data size: " << obs.data.size() << endl;
     
-    if (obs.data.size() >= 33) {
-        cout << "IMU Data (9 values):" << endl;
-        cout << "  Roll: " << obs.data[0] << " deg" << endl;
-        cout << "  Pitch: " << obs.data[1] << " deg" << endl;
-        cout << "  Yaw: " << obs.data[2] << " deg" << endl;
+    if (obs.data.size() >= 65) {
+        cout << "Body Linear Velocity (3 values):" << endl;
+        cout << "  Vx: " << obs.data[0] << " m/s" << endl;
+        cout << "  Vy: " << obs.data[1] << " m/s" << endl;
+        cout << "  Vz: " << obs.data[2] << " m/s" << endl;
+        
+        cout << "Body Angular Velocity (3 values):" << endl;
         cout << "  Roll Vel: " << obs.data[3] << " deg/s" << endl;
         cout << "  Pitch Vel: " << obs.data[4] << " deg/s" << endl;
         cout << "  Yaw Vel: " << obs.data[5] << " deg/s" << endl;
-        cout << "  Acc X: " << obs.data[6] << " m/s²" << endl;
-        cout << "  Acc Y: " << obs.data[7] << " m/s²" << endl;
-        cout << "  Acc Z: " << obs.data[8] << " m/s²" << endl;
         
-        cout << "Joint Positions (12 values):" << endl;
+        cout << "Body Orientation (3 values):" << endl;
+        cout << "  Roll: " << obs.data[6] << " deg" << endl;
+        cout << "  Pitch: " << obs.data[7] << " deg" << endl;
+        cout << "  Yaw: " << obs.data[8] << " deg" << endl;
+        
+        cout << "Command Values (3 values):" << endl;
+        cout << "  Cmd Vx: " << obs.data[9] << " m/s" << endl;
+        cout << "  Cmd Vy: " << obs.data[10] << " m/s" << endl;
+        cout << "  Cmd Yaw: " << obs.data[11] << " rad/s" << endl;
+        
+        cout << "Joint Position Deviations (12 values):" << endl;
         for (int i = 0; i < 12; ++i) {
-            cout << "  J" << i << ": " << obs.data[9 + i] << " rad" << endl;
+            cout << "  J" << i << ": " << obs.data[12 + i] << " rad" << endl;
         }
         
         cout << "Joint Velocities (12 values):" << endl;
         for (int i = 0; i < 12; ++i) {
-            cout << "  J" << i << ": " << obs.data[21 + i] << " rad/s" << endl;
+            cout << "  J" << i << ": " << obs.data[24 + i] << " rad/s" << endl;
         }
         
-        cout << "Contact Forces (12 values):" << endl;
+        cout << "Previous Actions (12 values):" << endl;
         for (int i = 0; i < 12; ++i) {
-            cout << "  F" << i << ": " << obs.data[33 + i] << " N" << endl;
+            cout << "  A" << i << ": " << obs.data[36 + i] << " rad" << endl;
         }
+        
+        cout << "Height Map (16 values):" << endl;
+        for (int i = 0; i < 16; ++i) {
+            cout << "  H" << i << ": " << obs.data[48 + i] << " m" << endl;
+        }
+        
+        cout << "Additional Value (1 value):" << endl;
+        cout << "  Extra: " << obs.data[64] << endl;
+    } else {
+        cout << "Warning: Observation data size is " << obs.data.size() << " (expected 65)" << endl;
     }
     cout << endl;
 }
@@ -201,10 +246,10 @@ void ValidateDataFormat(const RobotData& robot_data,
     cout << "=== Data Format Validation ===" << endl;
     
     // 验证Observation数据大小
-    if (obs.data.size() == 45) {
-        cout << "✓ Observation data size is correct (45 values)" << endl;
+    if (obs.data.size() == 65) {
+        cout << "✓ Observation data size is correct (65 values)" << endl;
     } else {
-        cout << "✗ Observation data size is incorrect: " << obs.data.size() << " (expected 45)" << endl;
+        cout << "✗ Observation data size is incorrect: " << obs.data.size() << " (expected 65)" << endl;
     }
     
     // 验证Action数据大小
@@ -281,15 +326,16 @@ int main(int argc, char* argv[]) {
     cout << "=== GRPC Inference Server Test Program ===" << endl;
     cout << "This program tests the complete pipeline:" << endl;
     cout << "1. Create mock RobotData" << endl;
-    cout << "2. Convert to Observation" << endl;
-    cout << "3. Send to GRPC server" << endl;
-    cout << "4. Receive inference result" << endl;
-    cout << "5. Convert to RobotCmd" << endl;
-    cout << "6. Validate data format" << endl;
+    cout << "2. Create mock action data" << endl;
+    cout << "3. Convert to Observation" << endl;
+    cout << "4. Send to GRPC server" << endl;
+    cout << "5. Receive inference result" << endl;
+    cout << "6. Convert to RobotCmd" << endl;
+    cout << "7. Validate data format" << endl;
     cout << endl;
     
     // 获取服务器地址
-    std::string server_address = "localhost:50051";
+    std::string server_address = "localhost:50151";
     if (argc > 1) {
         server_address = argv[1];
     }
@@ -307,14 +353,21 @@ int main(int argc, char* argv[]) {
         cout << "  - IMU yaw: " << robot_data.imu.angle_yaw << " deg" << endl;
         cout << endl;
         
-        // 步骤2: 转换为Observation
-        cout << "Step 2: Converting RobotData to Observation..." << endl;
-        Observation observation = ConvertRobotDataToObservation(robot_data);
+        // 步骤2: 创建模拟的action数据
+        cout << "Step 2: Creating mock action data..." << endl;
+        std::vector<float> action_data = CreateMockActionData();
+        cout << "✓ Mock action data created successfully" << endl;
+        cout << "  - Action data size: " << action_data.size() << endl;
+        cout << endl;
+        
+        // 步骤3: 转换为Observation
+        cout << "Step 3: Converting RobotData to Observation..." << endl;
+        Observation observation = ConvertRobotDataToObservation(robot_data, action_data);
         cout << "✓ Observation created successfully" << endl;
         PrintObservation(observation);
         
-        // 步骤3: 创建GRPC客户端并连接
-        cout << "Step 3: Creating GRPC client and connecting..." << endl;
+        // 步骤4: 创建GRPC客户端并连接
+        cout << "Step 4: Creating GRPC client and connecting..." << endl;
         std::unique_ptr<GrpcClient> client = std::make_unique<GrpcClient>(server_address);
         
         if (!client->Connect()) {
@@ -325,8 +378,8 @@ int main(int argc, char* argv[]) {
         cout << "✓ Successfully connected to GRPC server" << endl;
         cout << endl;
         
-        // 步骤4: 发送推理请求
-        cout << "Step 4: Sending inference request..." << endl;
+        // 步骤5: 发送推理请求
+        cout << "Step 5: Sending inference request..." << endl;
         inference::InferenceResponse response = client->Predict(observation.data, "stand_still", true);
         
         if (!response.success()) {
@@ -337,20 +390,20 @@ int main(int argc, char* argv[]) {
         cout << "  - Response action size: " << response.action_size() << endl;
         cout << endl;
         
-        // 步骤5: 转换为RobotAction
-        cout << "Step 5: Converting response to RobotAction..." << endl;
+        // 步骤6: 转换为RobotAction
+        cout << "Step 6: Converting response to RobotAction..." << endl;
         RobotAction action = ConvertResponseToAction(response);
         cout << "✓ RobotAction created successfully" << endl;
         PrintRobotAction(action);
         
-        // 步骤6: 转换为RobotCmd
-        cout << "Step 6: Converting RobotAction to RobotCmd..." << endl;
+        // 步骤7: 转换为RobotCmd
+        cout << "Step 7: Converting RobotAction to RobotCmd..." << endl;
         RobotCmd robot_cmd = CreateRobotCmd(action);
         cout << "✓ RobotCmd created successfully" << endl;
         PrintRobotCmd(robot_cmd);
         
-        // 步骤7: 验证数据格式
-        cout << "Step 7: Validating data format..." << endl;
+        // 步骤8: 验证数据格式
+        cout << "Step 8: Validating data format..." << endl;
         ValidateDataFormat(robot_data, observation, action, robot_cmd);
         
         cout << "=== Test Completed Successfully ===" << endl;

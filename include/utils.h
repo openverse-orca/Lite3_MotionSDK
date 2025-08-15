@@ -13,8 +13,9 @@ void PrintRobotData(const RobotData* robot_data, std::ofstream& file);
 
 /// @brief Converts RobotData into an Observation object.
 /// @param robot_data The RobotData structure to convert.
+/// @param action_data The action data from the previous timestep.
 /// @return An Observation object populated with data from RobotData.
-Observation ConvertRobotDataToObservation(const RobotData& robot_data);
+Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data);
 
 /// @brief Creates a RobotCmd structure from a set of leg positions.
 /// @param fl_leg_positions The positions of the front left leg.

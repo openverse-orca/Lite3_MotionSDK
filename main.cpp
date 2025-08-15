@@ -130,12 +130,25 @@ int main(int argc, char* argv[]){
     // compute action from neural network every 0.02s (50Hz)   4 * 0.005
     if (time_tick % 20 == 0 && time_tick >= 10000) {
       cout << "try to get action from neural network" << endl;
+      static vector<float> last_action;
+      if (last_action.empty()) {
+        last_action = vector<float>(12, 0.0f);
+      }
       // Convert RobotData to Observation
-      Observation observation = ConvertRobotDataToObservation(*robot_data);
+      Observation observation = ConvertRobotDataToObservation(*robot_data, last_action);
+
       // Send the observation and receive the action
       inference::InferenceResponse response = client->Predict(observation.data, "default", true);
+      
+      // Extract action data from response
+      last_action.clear();
+      for (int i = 0; i < response.action_size(); ++i) {
+          last_action.push_back(response.action(i));
+      }
+
       // Convert the response to RobotAction
       RobotAction action = ConvertResponseToAction(response);
+
       // Convert the action back to RobotCmd
       robot_joint_cmd_nn = CreateRobotCmd(action);
 
