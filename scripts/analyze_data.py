@@ -82,9 +82,9 @@ def plot_observation_data(observation_df, save_plots=True):
     
     # 定义observation数据的分类结构
     obs_categories = {
-        'Body Linear Velocity': {
+        'Body Linear Acceleration': {
             'indices': [0, 1, 2],
-            'names': ['vx', 'vy', 'vz'],
+            'names': ['acc_x', 'acc_y', 'acc_z'],
             'colors': ['blue', 'red', 'green']
         },
         'Body Angular Velocity': {
@@ -267,9 +267,9 @@ def create_combined_plot(observation_df, raw_action_df, action_df, save_plots=Tr
     
     # 定义observation数据的分类结构
     obs_categories = {
-        'Body Linear Velocity': {
+        'Body Linear Acceleration': {
             'indices': [0, 1, 2],
-            'names': ['vx', 'vy', 'vz'],
+            'names': ['acc_x', 'acc_y', 'acc_z'],
             'colors': ['blue', 'red', 'green']
         },
         'Body Angular Velocity': {

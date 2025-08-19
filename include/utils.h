@@ -15,7 +15,7 @@ void PrintRobotData(const RobotData* robot_data, std::ofstream& file);
 /// @param robot_data The RobotData structure to convert.
 /// @param action_data The action data from the previous timestep.
 /// @return An Observation object populated with data from RobotData.
-Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data);
+Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data, const RobotMoveCommand& robot_move_command);
 
 /// @brief Applies scaling and noise to observation data to match training conditions.
 /// @param obs The observation data to process.

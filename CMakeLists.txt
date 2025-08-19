@@ -80,6 +80,8 @@ endforeach(VAR)
 
 # Add data_logger.cpp to the source list
 list(APPEND SRC_LIST "src/data_logger.cpp")
+# Add keyboard_controller.cpp to the source list
+list(APPEND SRC_LIST "src/keyboard_controller.cpp")
 
 # 在 include_directories 中添加 OpenSSL 头文件路径
 include_directories(
@@ -109,19 +111,43 @@ add_executable(test_grpc_client
   ${hw_grpc_srcs}
 )
 
+add_executable(test_imu_processor
+  "test/test_imu_processor.cpp"
+  "src/imu_processor.cpp"
+)
+
+add_executable(y_axis_verification
+  "test/y_axis_verification.cpp"
+  "src/imu_processor.cpp"
+)
+
+add_executable(test_keyboard_controller
+  "test/test_keyboard_controller.cpp"
+  "src/keyboard_controller.cpp"
+)
+
 # 链接动态库target_link_libraries(myprogram /path/to/lib/libfoo.so)
 
 # 外部用cmake . -DBUILD_PLATFORM=arm进行值传入，便可以执行不同的逻辑
 if (BUILD_PLATFORM STREQUAL arm)
   target_link_libraries(${PROJECT_NAME} libdeeprobotics_legged_sdk_aarch64.so)
   target_link_libraries(test_grpc_client libdeeprobotics_legged_sdk_aarch64.so)
+  target_link_libraries(test_imu_processor libdeeprobotics_legged_sdk_aarch64.so)
+  target_link_libraries(y_axis_verification libdeeprobotics_legged_sdk_aarch64.so)
+  target_link_libraries(test_keyboard_controller libdeeprobotics_legged_sdk_aarch64.so)
 else()
   target_link_libraries(${PROJECT_NAME} libdeeprobotics_legged_sdk_x86_64.so)
   target_link_libraries(test_grpc_client libdeeprobotics_legged_sdk_x86_64.so)
+  target_link_libraries(test_imu_processor libdeeprobotics_legged_sdk_x86_64.so)
+  target_link_libraries(y_axis_verification libdeeprobotics_legged_sdk_x86_64.so)
+  target_link_libraries(test_keyboard_controller libdeeprobotics_legged_sdk_x86_64.so)
 endif()
 
 target_link_libraries(${PROJECT_NAME} -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
 target_link_libraries(test_grpc_client -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
+target_link_libraries(test_imu_processor -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
+target_link_libraries(y_axis_verification -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
+target_link_libraries(test_keyboard_controller -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
 
 target_link_libraries(${PROJECT_NAME}
     ${_REFLECTION}
@@ -133,6 +159,33 @@ target_link_libraries(${PROJECT_NAME}
 )
 
 target_link_libraries(test_grpc_client
+    ${_REFLECTION}
+    ${_SSL_CRYPTO}
+    ${_SSL_SSL}
+    ${_GRPC_GRPCPP}
+    ${_GRPC_GRPC}
+    ${_PROTOBUF_LIBPROTOBUF}
+)
+
+target_link_libraries(test_imu_processor
+    ${_REFLECTION}
+    ${_SSL_CRYPTO}
+    ${_SSL_SSL}
+    ${_GRPC_GRPCPP}
+    ${_GRPC_GRPC}
+    ${_PROTOBUF_LIBPROTOBUF}
+)
+
+target_link_libraries(y_axis_verification
+    ${_REFLECTION}
+    ${_SSL_CRYPTO}
+    ${_SSL_SSL}
+    ${_GRPC_GRPCPP}
+    ${_GRPC_GRPC}
+    ${_PROTOBUF_LIBPROTOBUF}
+)
+
+target_link_libraries(test_keyboard_controller
     ${_REFLECTION}
     ${_SSL_CRYPTO}
     ${_SSL_SSL}

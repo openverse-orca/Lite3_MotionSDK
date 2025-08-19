@@ -60,7 +60,7 @@ struct RobotAction {
 /// @param robot_data 机器人数据
 /// @param action_data 上一时刻的动作数据
 /// @return 观察数据
-Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data);
+Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data, const RobotMoveCommand& robot_move_command);
 
 /// @brief 将RobotAction转换为RobotCmd
 /// @param action 动作数据

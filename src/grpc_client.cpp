@@ -1,13 +1,14 @@
-#include "grpc_client.h"
-#include "../include/velocity_calculator.h"
+#include "../include/grpc_client.h"
+#include "../include/imu_processor.h"
 #include <iostream>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
 #include <cstdlib>
 #include <ctime>
+#include <cmath>
 
-// 全局速度计算器实例
-static VelocityCalculator velocity_calculator(10, 0.1f);
+// 全局IMU处理器实例
+static ImuProcessor imu_processor(10, 0.1f);
 static float last_timestamp = 0.0f;
 
 // 初始化随机数种子
@@ -111,40 +112,57 @@ bool GrpcClient::IsConnected() const {
     return connected_;
 }
 
-Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data) {
+struct Acceleration {
+    float ax;
+    float ay;
+    float az;
+};
+
+// 重力补偿函数（直接修改ImuData结构中的加速度值）
+void gravity_compensation(const ImuData& imu, float g, Acceleration& acc) 
+{
+    // 角度转弧度（姿态角单位为度）
+    const float roll_rad = imu.angle_roll * M_PI / 180.0f;
+    const float pitch_rad = imu.angle_pitch * M_PI / 180.0f;
+
+    // 计算当前姿态下重力在三轴的分量
+    const float g_x = -g * std::sin(pitch_rad);
+    const float g_y = g * std::sin(roll_rad) * std::cos(pitch_rad);
+    const float g_z = g * std::cos(roll_rad) * std::cos(pitch_rad);
+
+    // 重力补偿：从原始加速度中减去重力分量
+    acc.ax = imu.acc_x - g_x;
+    acc.ay = imu.acc_y - g_y;
+    acc.az = imu.acc_z - g_z;
+}
+
+Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std::vector<float>& action_data, const RobotMoveCommand& robot_move_command) {
     Observation obs;
+
+    Acceleration acc;
+    gravity_compensation(robot_data.imu, 9.80665f, acc);
+
+    // 1. 身体线加速度 - 3个值（使用处理后的加速度）
+    obs.data.push_back(acc.ax);
+    obs.data.push_back(acc.ay);
+    obs.data.push_back(acc.az);
     
-    // 计算时间间隔（使用RobotData中的timestamp）
-    float current_timestamp = static_cast<float>(robot_data.tick) / 1000.0f;  // 转换为秒
-    float dt = current_timestamp - last_timestamp;
-    last_timestamp = current_timestamp;
+    // 2. 身体角速度 (从IMU获取) - 3个值，将度数转换为弧度
+    obs.data.push_back(robot_data.imu.angular_velocity_roll * M_PI / 180.0f);
+    obs.data.push_back(robot_data.imu.angular_velocity_pitch * M_PI / 180.0f);
+    obs.data.push_back(robot_data.imu.angular_velocity_yaw * M_PI / 180.0f);
     
-    // 确保时间间隔合理（避免第一次调用时dt过大或为负）
-    if (dt <= 0.0f || dt > 0.1f) dt = 0.01f;  // 限制时间间隔在1-100ms之间
-    
-    // 使用VelocityCalculator计算精确的线速度
-    VelocityCalculator::Velocity3D body_lin_vel = velocity_calculator.updateVelocity(robot_data.imu, dt);
-    
-    // 1. 身体线速度 (使用VelocityCalculator计算的精确值) - 3个值
-    obs.data.push_back(body_lin_vel.vx);
-    obs.data.push_back(body_lin_vel.vy);
-    obs.data.push_back(body_lin_vel.vz);
-    
-    // 2. 身体角速度 (从IMU获取) - 3个值
-    obs.data.push_back(robot_data.imu.angular_velocity_roll);
-    obs.data.push_back(robot_data.imu.angular_velocity_pitch);
-    obs.data.push_back(robot_data.imu.angular_velocity_yaw);
-    
-    // 3. 身体方向 (从IMU获取欧拉角) - 3个值
-    obs.data.push_back(robot_data.imu.angle_roll);
-    obs.data.push_back(robot_data.imu.angle_pitch);
+    // 3. 身体方向 (从IMU获取欧拉角) - 3个值，将度数转换为弧度
+    obs.data.push_back(robot_data.imu.angle_roll * M_PI / 180.0f);
+    obs.data.push_back(robot_data.imu.angle_pitch * M_PI / 180.0f);
+    // obs.data.push_back(robot_data.imu.angle_yaw * M_PI / 180.0f);
     obs.data.push_back(0.0f); // 不使用 robot_data.imu.angle_yaw，因为这是全局坐标，此处在训练的时候恒为0 
     
     // 4. 命令值 (这里用零向量，实际应该从外部传入) - 4个值
-    obs.data.push_back(0.0f);  // 线速度命令 x
-    obs.data.push_back(0.0f);  // 线速度命令 y
+    obs.data.push_back(robot_move_command.forward_speed);  // 线速度命令 x
+    obs.data.push_back(robot_move_command.left_speed);  // 线速度命令 y
     obs.data.push_back(0.0f);  // 线速度命令 z
-    obs.data.push_back(0.0f);  // 角速度命令 z
+    obs.data.push_back(robot_move_command.turn_speed);  // 角速度命令 z
     
     // 5. 关节位置相对于中性位置的偏差 (12个值)
     // 中性位置通常为站立姿态的关节角度
@@ -369,8 +387,7 @@ RobotCmd CreateRobotCmd(const RobotAction& action) {
     // 如果动作数据足够，则设置关节位置
     if (action.data.size() >= 12) {
         for (int i = 0; i < 12; ++i) {
-            // cmd.joint_cmd[i].position = action.data[i] + neutral_joint_values[i];
-            cmd.joint_cmd[i].position = neutral_joint_values[i];
+            cmd.joint_cmd[i].position = action.data[i] + neutral_joint_values[i];
         }
     }
     

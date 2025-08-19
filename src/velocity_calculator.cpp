@@ -10,8 +10,7 @@
 #include <algorithm>
 #include <numeric>
 
-const float PI = 3.14159265359f;
-const float DEGREE_TO_RADIAN = PI / 180.0f;
+const float DEGREE_TO_RADIAN = M_PI / 180.0f;
 
 VelocityCalculator::VelocityCalculator(size_t window_size, float gravity_threshold)
     : window_size_(window_size)

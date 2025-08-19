@@ -15,15 +15,22 @@
 #include "utils.h"
 #include "grpc_client.h"
 #include "data_logger.h"
+#include "keyboard_controller.h"
 #include <memory>
 #include <iostream>
 #include <time.h>
 #include <string.h>
-#include <fstream> 
+#include <fstream>
+#include <cmath>
+
+#define M_PI 3.14159265358979323846 
 
 using namespace std;
 
   bool is_message_updated_ = false; ///< Flag to check if message has been updated
+  bool debug_zero_actions_ = true; ///< Flag to enable zero actions debugging mode
+  int key_space_cooldown_timer = 0;
+
   /**
    * @brief Callback function to set message update flag
    * 
@@ -32,6 +39,46 @@ using namespace std;
   void OnMessageUpdate(uint32_t code){
     if(code == 0x0906){
       is_message_updated_ = true;
+    }
+  }
+
+  
+  /**
+   * @brief Update robot move command based on keyboard input
+   */
+  void UpdateRobotMoveCommand(KeyboardController* keyboard_controller, RobotMoveCommand& robot_move_command) {
+    // Reset all speeds
+    robot_move_command.forward_speed = 0.0f;
+    robot_move_command.left_speed = 0.0f;
+    robot_move_command.turn_speed = 0.0f;
+    
+    // Check for continuous key presses
+    if (keyboard_controller->IsKeyPressed('w')) {
+      robot_move_command.forward_speed = 1.0f;
+    }
+    if (keyboard_controller->IsKeyPressed('s')) {
+      robot_move_command.forward_speed = -0.5f;
+    }
+    if (keyboard_controller->IsKeyPressed('q')) {
+      robot_move_command.left_speed = 0.2f;
+    }
+    if (keyboard_controller->IsKeyPressed('e')) {
+      robot_move_command.left_speed = -0.2f;
+    }
+
+    // if (keyboard_controller->IsKeyPressed("shift"))
+    
+    // Handle turning (Q for left turn, E for right turn)
+    if (keyboard_controller->IsKeyPressed('a')) {
+      robot_move_command.turn_speed = M_PI / 4.0f;  // Left turn
+    }
+    if (keyboard_controller->IsKeyPressed('d')) {
+      robot_move_command.turn_speed = -M_PI / 4.0f;   // Right turn
+    }
+
+    if (keyboard_controller->IsKeyPressed(' ')) {
+      debug_zero_actions_ = !debug_zero_actions_;
+      std::cout << "Zero actions debug mode: " << (debug_zero_actions_ ? "ENABLED" : "DISABLED") << std::endl;
     }
   }
 
@@ -73,6 +120,14 @@ int main(int argc, char* argv[]){
     return -1;
   }
   
+  // Initialize keyboard controller
+  std::unique_ptr<KeyboardController> keyboard_controller = std::make_unique<KeyboardController>();
+  if (!keyboard_controller->Initialize()) {
+    std::cerr << "Failed to initialize keyboard controller. Exiting..." << std::endl;
+    return -1;
+  }
+  
+
   robot_data_recv->StartWork();
   set_timer.TimeInit(5);                                                      ///< Timer initialization, input: cycle; Unit: ms
   send_cmd->RobotStateInit();                                                 ///< Return all joints to zero and gain control
@@ -90,6 +145,21 @@ int main(int argc, char* argv[]){
 
   int time_tick = 0;
   while(1){
+    // Process keyboard input
+    keyboard_controller->ProcessKeyInput();
+    
+    // Update robot move command based on continuous key presses
+    RobotMoveCommand robot_move_command = {0.0f, 0.0f, 0.0f};
+    UpdateRobotMoveCommand(keyboard_controller.get(), robot_move_command);
+    
+    // Print current move command status (optional, for debugging)
+    if (robot_move_command.forward_speed > 0 || robot_move_command.left_speed > 0 || 
+        robot_move_command.turn_speed != 0) {
+      std::cout << "Move Command - F:" << robot_move_command.forward_speed 
+                << " L:" << robot_move_command.left_speed 
+                << " T:" << robot_move_command.turn_speed << std::endl;
+    }
+    
     if (set_timer.TimerInterrupt() == true){                                  ///< Time interrupt flag
       continue;
     }
@@ -146,7 +216,7 @@ int main(int argc, char* argv[]){
         last_action = vector<float>(12, 0.0f);
       }
       // Convert RobotData to Observation
-      Observation observation = ConvertRobotDataToObservation(*robot_data, last_action);
+      Observation observation = ConvertRobotDataToObservation(*robot_data, last_action, robot_move_command);
 
       // Save observation data to file
       data_logger->SaveObservation(time_tick, observation);
@@ -155,7 +225,7 @@ int main(int argc, char* argv[]){
       Observation processed_observation = ApplyObservationScalingAndNoise(observation);
 
       // Send the observation and receive the action
-      inference::InferenceResponse response = client->Predict(processed_observation.data, "stand_still", true); // stand_still, flat_terrain
+      inference::InferenceResponse response = client->Predict(processed_observation.data, "flat_terrain", true); // stand_still, flat_terrain
       
       // Extract action data from response (original model output, not scaled)
       last_action.clear();
@@ -168,6 +238,14 @@ int main(int argc, char* argv[]){
 
       // Convert the response to RobotAction (with action scaling applied for robot control)
       RobotAction action = ConvertResponseToAction(response);
+
+      // Set Zero actions for debugging (only when debug mode is enabled)
+      if (debug_zero_actions_) {
+        for (int i = 0; i < 12; ++i) {
+          action.data[i] = 0.0f;
+        }
+        std::cout << "Applied zero actions (debug mode active)" << std::endl;
+      }
 
       // Convert the action back to RobotCmd
       robot_joint_cmd_nn = CreateRobotCmd(action);
@@ -190,7 +268,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000 / time_step) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 25, 0.5);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 25, 1.0);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){

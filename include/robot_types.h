@@ -108,4 +108,13 @@ typedef struct{
   ContactForce contact_force; // Contact force data for the robot.
 }RobotData;
 
+
+struct RobotMoveCommand {
+  float forward_speed;
+  float left_speed;
+  float turn_speed;
+};
+
+
+
 #endif  ///< ROBOT_TYPES_H_

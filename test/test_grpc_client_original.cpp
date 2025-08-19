@@ -368,7 +368,8 @@ int main(int argc, char* argv[]) {
         
         // 步骤3: 转换为Observation
         cout << "Step 3: Converting RobotData to Observation..." << endl;
-        Observation observation = ConvertRobotDataToObservation(robot_data, action_data);
+        RobotMoveCommand robot_move_command = {0.0f, 0.0f, 0.0f};
+        Observation observation = ConvertRobotDataToObservation(robot_data, action_data, robot_move_command);
         cout << "✓ Observation created successfully" << endl;
         cout << "Note: Observation data will be processed with new noise for each iteration" << endl;
         cout << endl;
