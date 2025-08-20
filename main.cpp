@@ -52,33 +52,61 @@ using namespace std;
     robot_move_command.left_speed = 0.0f;
     robot_move_command.turn_speed = 0.0f;
     
+    // Check if left shift is pressed (by detecting uppercase letters)
+    bool left_shift_pressed = keyboard_controller->IsKeyPressed('W') || 
+                             keyboard_controller->IsKeyPressed('S') || 
+                             keyboard_controller->IsKeyPressed('A') || 
+                             keyboard_controller->IsKeyPressed('D') ||
+                             keyboard_controller->IsKeyPressed('Q') ||
+                             keyboard_controller->IsKeyPressed('E');
+    
+    // Speed multiplier based on shift key
+    float speed_multiplier = left_shift_pressed ? 2.0f : 1.0f;
+    
     // Check for continuous key presses
-    if (keyboard_controller->IsKeyPressed('w')) {
-      robot_move_command.forward_speed = 1.0f;
+    if (keyboard_controller->IsKeyPressed('w') || keyboard_controller->IsKeyPressed('W')) {
+      robot_move_command.forward_speed = 0.75f * speed_multiplier;
     }
-    if (keyboard_controller->IsKeyPressed('s')) {
-      robot_move_command.forward_speed = -0.5f;
+    if (keyboard_controller->IsKeyPressed('s') || keyboard_controller->IsKeyPressed('S')) {
+      robot_move_command.forward_speed = -0.5f * speed_multiplier;
     }
-    if (keyboard_controller->IsKeyPressed('q')) {
-      robot_move_command.left_speed = 0.2f;
+    if (keyboard_controller->IsKeyPressed('q') || keyboard_controller->IsKeyPressed('Q')) {
+      robot_move_command.left_speed = 0.2f * speed_multiplier;
     }
-    if (keyboard_controller->IsKeyPressed('e')) {
-      robot_move_command.left_speed = -0.2f;
+    if (keyboard_controller->IsKeyPressed('e') || keyboard_controller->IsKeyPressed('E')) {
+      robot_move_command.left_speed = -0.2f * speed_multiplier;
     }
 
-    // if (keyboard_controller->IsKeyPressed("shift"))
+    if (keyboard_controller->IsKeyPressed('ctrl')) {
+      robot_move_command.forward_speed = -0.5f * speed_multiplier;
+    }
     
-    // Handle turning (Q for left turn, E for right turn)
-    if (keyboard_controller->IsKeyPressed('a')) {
+    // Handle turning (A for left turn, D for right turn)
+    if (keyboard_controller->IsKeyPressed('a') || keyboard_controller->IsKeyPressed('A')) {
       robot_move_command.turn_speed = M_PI / 4.0f;  // Left turn
     }
-    if (keyboard_controller->IsKeyPressed('d')) {
+    if (keyboard_controller->IsKeyPressed('d') || keyboard_controller->IsKeyPressed('D')) {
       robot_move_command.turn_speed = -M_PI / 4.0f;   // Right turn
     }
 
     if (keyboard_controller->IsKeyPressed(' ')) {
       debug_zero_actions_ = !debug_zero_actions_;
       std::cout << "Zero actions debug mode: " << (debug_zero_actions_ ? "ENABLED" : "DISABLED") << std::endl;
+    }
+    
+    // Print speed multiplier status when shift is pressed
+    if (left_shift_pressed) {
+      static bool shift_status_printed = false;
+      if (!shift_status_printed) {
+        std::cout << "Speed boost activated (2x speed)" << std::endl;
+        shift_status_printed = true;
+      }
+    } else {
+      static bool shift_status_printed = false;
+      if (shift_status_printed) {
+        std::cout << "Speed boost deactivated (normal speed)" << std::endl;
+        shift_status_printed = false;
+      }
     }
   }
 
@@ -268,7 +296,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000 / time_step) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 25, 1.0);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 20, 0.7);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){
