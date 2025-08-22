@@ -23,6 +23,15 @@ endif()
 find_package(OpenSSL REQUIRED)
 message(STATUS "Using OpenSSL version: ${OPENSSL_VERSION}")
 
+# 查找 ncurses 库
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(NCURSES REQUIRED ncurses)
+message(STATUS "Using ncurses version: ${NCURSES_VERSION}")
+
+# 查找 SDL2 库
+pkg_check_modules(SDL2 REQUIRED sdl2)
+message(STATUS "Using SDL2 version: ${SDL2_VERSION}")
+
 # vcpkg
 # set(Protobuf_DIR "$ENV{HOME}/.orca/3rdParty/packages/grpc-1.51.1-rev2-linux/grpc/lib/cmake/protobuf")
 # set(gRPC_DIR "$ENV{HOME}/.orca/3rdParty/packages/grpc-1.51.1-rev2-linux/grpc/lib/cmake/grpc")
@@ -81,7 +90,7 @@ endforeach(VAR)
 # Add data_logger.cpp to the source list
 list(APPEND SRC_LIST "src/data_logger.cpp")
 # Add keyboard_controller.cpp to the source list
-list(APPEND SRC_LIST "src/keyboard_controller.cpp")
+# list(APPEND SRC_LIST "src/keyboard_controller.cpp")
 
 # 在 include_directories 中添加 OpenSSL 头文件路径
 include_directories(
@@ -89,6 +98,8 @@ include_directories(
     ./include/common/
     ./lib/eigen3
     ./build
+    ${NCURSES_INCLUDE_DIRS}  # 添加 ncurses 头文件路径
+    ${SDL2_INCLUDE_DIRS}     # 添加 SDL2 头文件路径
     # ${OPENSSL_INCLUDE_DIR}  # 添加 OpenSSL 头文件路径
 )
 
@@ -143,11 +154,11 @@ else()
   target_link_libraries(test_keyboard_controller libdeeprobotics_legged_sdk_x86_64.so)
 endif()
 
-target_link_libraries(${PROJECT_NAME} -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
+target_link_libraries(${PROJECT_NAME} -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto ${NCURSES_LIBRARIES} ${SDL2_LIBRARIES})
 target_link_libraries(test_grpc_client -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
 target_link_libraries(test_imu_processor -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
 target_link_libraries(y_axis_verification -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
-target_link_libraries(test_keyboard_controller -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto)
+target_link_libraries(test_keyboard_controller -lpthread -lm -lrt -ldl -lstdc++ -lssl -lcrypto ${NCURSES_LIBRARIES} ${SDL2_LIBRARIES})
 
 target_link_libraries(${PROJECT_NAME}
     ${_REFLECTION}

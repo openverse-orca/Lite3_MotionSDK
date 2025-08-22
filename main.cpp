@@ -15,7 +15,7 @@
 #include "utils.h"
 #include "grpc_client.h"
 #include "data_logger.h"
-#include "keyboard_controller.h"
+#include "kyeboard_handler.h"
 #include <memory>
 #include <iostream>
 #include <time.h>
@@ -31,6 +31,13 @@ using namespace std;
   bool debug_zero_actions_ = true; ///< Flag to enable zero actions debugging mode
   int key_space_cooldown_timer = 0;
 
+  enum ModelType {
+    FLAT_TERRAIN = 0,
+    ROUGH_TERRAIN,
+  };
+
+  ModelType model_type = FLAT_TERRAIN;
+
   /**
    * @brief Callback function to set message update flag
    * 
@@ -42,56 +49,59 @@ using namespace std;
     }
   }
 
-  
+  int switch_cool_down = 0;
   /**
    * @brief Update robot move command based on keyboard input
    */
-  void UpdateRobotMoveCommand(KeyboardController* keyboard_controller, RobotMoveCommand& robot_move_command) {
+  void UpdateRobotMoveCommand(KeyboardHandler* keyboard_handler, RobotMoveCommand& robot_move_command) {
     // Reset all speeds
     robot_move_command.forward_speed = 0.0f;
     robot_move_command.left_speed = 0.0f;
     robot_move_command.turn_speed = 0.0f;
     
     // Check if left shift is pressed (by detecting uppercase letters)
-    bool left_shift_pressed = keyboard_controller->IsKeyPressed('W') || 
-                             keyboard_controller->IsKeyPressed('S') || 
-                             keyboard_controller->IsKeyPressed('A') || 
-                             keyboard_controller->IsKeyPressed('D') ||
-                             keyboard_controller->IsKeyPressed('Q') ||
-                             keyboard_controller->IsKeyPressed('E');
+    bool left_shift_pressed = keyboard_handler->IsKeyPressed("left_shift");
     
     // Speed multiplier based on shift key
     float speed_multiplier = left_shift_pressed ? 2.0f : 1.0f;
     
     // Check for continuous key presses
-    if (keyboard_controller->IsKeyPressed('w') || keyboard_controller->IsKeyPressed('W')) {
+    if (keyboard_handler->IsKeyPressed("w")) {
       robot_move_command.forward_speed = 0.75f * speed_multiplier;
     }
-    if (keyboard_controller->IsKeyPressed('s') || keyboard_controller->IsKeyPressed('S')) {
+    if (keyboard_handler->IsKeyPressed("s")) {
       robot_move_command.forward_speed = -0.5f * speed_multiplier;
     }
-    if (keyboard_controller->IsKeyPressed('q') || keyboard_controller->IsKeyPressed('Q')) {
+    if (keyboard_handler->IsKeyPressed("q")) {
       robot_move_command.left_speed = 0.2f * speed_multiplier;
     }
-    if (keyboard_controller->IsKeyPressed('e') || keyboard_controller->IsKeyPressed('E')) {
+    if (keyboard_handler->IsKeyPressed("e")) {
       robot_move_command.left_speed = -0.2f * speed_multiplier;
-    }
-
-    if (keyboard_controller->IsKeyPressed('ctrl')) {
-      robot_move_command.forward_speed = -0.5f * speed_multiplier;
     }
     
     // Handle turning (A for left turn, D for right turn)
-    if (keyboard_controller->IsKeyPressed('a') || keyboard_controller->IsKeyPressed('A')) {
-      robot_move_command.turn_speed = M_PI / 4.0f;  // Left turn
+    if (keyboard_handler->IsKeyPressed("a")) {
+      robot_move_command.turn_speed += M_PI / 4.0f;  // Left turn
     }
-    if (keyboard_controller->IsKeyPressed('d') || keyboard_controller->IsKeyPressed('D')) {
-      robot_move_command.turn_speed = -M_PI / 4.0f;   // Right turn
+    if (keyboard_handler->IsKeyPressed("d")) {
+      robot_move_command.turn_speed += -M_PI / 4.0f;   // Right turn
     }
 
-    if (keyboard_controller->IsKeyPressed(' ')) {
+    if (keyboard_handler->IsKeyPressed("space") && switch_cool_down > 100) {
       debug_zero_actions_ = !debug_zero_actions_;
       std::cout << "Zero actions debug mode: " << (debug_zero_actions_ ? "ENABLED" : "DISABLED") << std::endl;
+      switch_cool_down = 0;
+    }
+
+    switch_cool_down++;
+
+    if (keyboard_handler->IsKeyPressed("1")) {
+      std::cout << "Switch to flat terrain" << std::endl;
+      model_type = FLAT_TERRAIN;
+    }
+    if (keyboard_handler->IsKeyPressed("2")) {
+      std::cout << "Switch to rough terrain" << std::endl;
+      model_type = ROUGH_TERRAIN;
     }
     
     // Print speed multiplier status when shift is pressed
@@ -148,12 +158,9 @@ int main(int argc, char* argv[]){
     return -1;
   }
   
-  // Initialize keyboard controller
-  std::unique_ptr<KeyboardController> keyboard_controller = std::make_unique<KeyboardController>();
-  if (!keyboard_controller->Initialize()) {
-    std::cerr << "Failed to initialize keyboard controller. Exiting..." << std::endl;
-    return -1;
-  }
+  // Initialize keyboard handler
+  KeyboardHandler keyboard_handler;
+  
   
 
   robot_data_recv->StartWork();
@@ -172,16 +179,21 @@ int main(int argc, char* argv[]){
   int time_step = 5;
 
   int time_tick = 0;
-  while(1){
+  bool is_running = true;
+ 
+  while(is_running){
     // Process keyboard input
-    keyboard_controller->ProcessKeyInput();
+    keyboard_handler.update();
+    if (keyboard_handler.IsKeyPressed("escape")) {
+      is_running = false;
+    }
     
     // Update robot move command based on continuous key presses
     RobotMoveCommand robot_move_command = {0.0f, 0.0f, 0.0f};
-    UpdateRobotMoveCommand(keyboard_controller.get(), robot_move_command);
+    UpdateRobotMoveCommand(&keyboard_handler, robot_move_command);
     
     // Print current move command status (optional, for debugging)
-    if (robot_move_command.forward_speed > 0 || robot_move_command.left_speed > 0 || 
+    if (robot_move_command.forward_speed != 0 || robot_move_command.left_speed != 0 || 
         robot_move_command.turn_speed != 0) {
       std::cout << "Move Command - F:" << robot_move_command.forward_speed 
                 << " L:" << robot_move_command.left_speed 
@@ -253,7 +265,15 @@ int main(int argc, char* argv[]){
       Observation processed_observation = ApplyObservationScalingAndNoise(observation);
 
       // Send the observation and receive the action
-      inference::InferenceResponse response = client->Predict(processed_observation.data, "flat_terrain", true); // stand_still, flat_terrain
+      inference::InferenceResponse response;
+      if (model_type == FLAT_TERRAIN) {
+        response = client->Predict(processed_observation.data, "flat_terrain", true); // stand_still, flat_terrain
+      } else if (model_type == ROUGH_TERRAIN) {
+        response = client->Predict(processed_observation.data, "rough_terrain", true); // stand_still, flat_terrain
+      } else {
+        std::cout << "Invalid model type" << std::endl;
+        return -1;
+      }
       
       // Extract action data from response (original model output, not scaled)
       last_action.clear();
@@ -296,7 +316,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000 / time_step) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 20, 0.7);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 20, 2.0);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){
