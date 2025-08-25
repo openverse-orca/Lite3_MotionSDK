@@ -63,14 +63,14 @@ using namespace std;
     bool left_shift_pressed = keyboard_handler->IsKeyPressed("left_shift");
     
     // Speed multiplier based on shift key
-    float speed_multiplier = left_shift_pressed ? 2.0f : 1.0f;
+    float speed_multiplier = left_shift_pressed ? 3.0f : 1.0f;
     
     // Check for continuous key presses
     if (keyboard_handler->IsKeyPressed("w")) {
-      robot_move_command.forward_speed = 0.75f * speed_multiplier;
+      robot_move_command.forward_speed = 0.5f * speed_multiplier;
     }
     if (keyboard_handler->IsKeyPressed("s")) {
-      robot_move_command.forward_speed = -0.5f * speed_multiplier;
+      robot_move_command.forward_speed = -0.3f * speed_multiplier;
     }
     if (keyboard_handler->IsKeyPressed("q")) {
       robot_move_command.left_speed = 0.2f * speed_multiplier;
@@ -316,7 +316,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000 / time_step) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 20, 2.0);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 25, 1.0);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){

@@ -1,5 +1,6 @@
 #include "../include/grpc_client.h"
 #include "../include/imu_processor.h"
+#include "../include/square_wave.h"
 #include <iostream>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
@@ -10,6 +11,9 @@
 // 全局IMU处理器实例
 static ImuProcessor imu_processor(10, 0.1f);
 static float last_timestamp = 0.0f;
+
+// 全局方波生成器实例
+static SquareWaveGenerator square_wave_generator;
 
 // 初始化随机数种子
 static bool random_initialized = false;
@@ -164,7 +168,16 @@ Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std
     obs.data.push_back(0.0f);  // 线速度命令 z
     obs.data.push_back(robot_move_command.turn_speed);  // 角速度命令 z
     
-    // 5. 关节位置相对于中性位置的偏差 (12个值)
+    // 5. 方波信号 - 1个值
+    // 设置方波生成器的时间步长，200Hz，0.005s
+    square_wave_generator.set_dt(0.005f);
+    // 设置方波参数，参考 Lite3_confg.py
+    square_wave_generator.set_foot_square_wave(0.5f, 0.8f, 0.2f);  // p5=0.5, phase_freq=1.0, eps=0.1 
+    // 计算方波信号，使用前向速度作为输入
+    float square_wave = square_wave_generator.compute_square_wave(robot_move_command.forward_speed);
+    obs.data.push_back(square_wave);
+    
+    // 6. 关节位置相对于中性位置的偏差 (12个值)
     // 中性位置通常为站立姿态的关节角度
     // 此处参考训练代码中的neutral_joint_angles
     // # Init the robot in a standing position. Keep the order of the joints same as the joint_names 
@@ -174,27 +187,27 @@ Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std
     //                         "HL_HipX_joint": 0.0, "HL_HipY_joint": -1.0, "HL_Knee_joint": 1.5,
     //                         "HR_HipX_joint": 0.0, "HR_HipY_joint": -1.0, "HR_Knee_joint": 1.5},
     const std::vector<float> neutral_joint_values = {
-        0.0f, -0.8f, 1.5f,  // FL: hip, thigh, calf
-        0.0f, -0.8f, 1.5f,  // FR: hip, thigh, calf
-        0.0f, -1.0f, 1.5f,  // HL: hip, thigh, calf
-        0.0f, -1.0f, 1.5f   // HR: hip, thigh, calf
+        0.0f, -1.0f, 1.8f,  // FL: hip, thigh, calf
+        0.0f, -1.0f, 1.8f,  // FR: hip, thigh, calf
+        0.0f, -1.0f, 1.8f,  // HL: hip, thigh, calf
+        0.0f, -1.0f, 1.8f   // HR: hip, thigh, calf
     };
     
     for (int i = 0; i < 12; ++i) {
         obs.data.push_back(robot_data.joint_data.joint_data[i].position - neutral_joint_values[i]);
     }
     
-    // 6. 关节速度 (12个值)
+    // 7. 关节速度 (12个值)
     for (int i = 0; i < 12; ++i) {
         obs.data.push_back(robot_data.joint_data.joint_data[i].velocity);
     }
     
-    // 7. 动作 (从上一时刻的动作获取) - 12个值
+    // 8. 动作 (从上一时刻的动作获取) - 12个值
     for (int i = 0; i < 12; ++i) {
         obs.data.push_back(action_data[i]);
     }
     
-    // 8. 身体高度 16 个浮点数，计算周边16个点位，从激光雷达获取。当前训练用的16个0值
+    // 9. 身体高度 16 个浮点数，计算周边16个点位，从激光雷达获取。当前训练用的16个0值
     for (int i = 0; i < 16; ++i) {
         obs.data.push_back(0.0f);
     }
@@ -259,6 +272,9 @@ std::vector<float> getObsScaleVec() {
     scale_vec.push_back(g_legged_obs_config.scale.lin_vel);  // Cmd Vy
     scale_vec.push_back(g_legged_obs_config.scale.lin_vel);  // Cmd Vz
     scale_vec.push_back(g_legged_obs_config.scale.ang_vel);  // Cmd Yaw
+
+    // 方波, 无缩放（1个值）
+    scale_vec.push_back(1.0f);
     
     // 关节位置偏差缩放 (12个值)
     for (int i = 0; i < 12; ++i) {
@@ -312,6 +328,9 @@ std::vector<float> getNoiseScaleVec() {
         noise_vec.push_back(0.0f);
     }
     
+    // 方波噪声 (1个值，无噪声)
+    noise_vec.push_back(0.0f);
+    
     // 关节位置偏差噪声 (12个值)
     for (int i = 0; i < 12; ++i) {
         noise_vec.push_back(g_legged_obs_config.noise.noise_level * 
@@ -344,7 +363,7 @@ std::vector<float> getNoiseScaleVec() {
 Observation ApplyObservationScalingAndNoise(const Observation& obs) {
     Observation processed_obs;
     
-    if (obs.data.size() != 65) {
+    if (obs.data.size() != 66) {
         std::cerr << "Warning: Observation data size is " << obs.data.size() 
                   << " (expected 65), skipping scaling and noise" << std::endl;
         return obs;
