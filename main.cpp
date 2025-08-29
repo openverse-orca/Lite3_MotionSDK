@@ -28,7 +28,7 @@
 using namespace std;
 
   bool is_message_updated_ = false; ///< Flag to check if message has been updated
-  bool debug_zero_actions_ = true; ///< Flag to enable zero actions debugging mode
+  bool zero_actions = true; ///< Flag to enable zero actions debugging mode
   int key_space_cooldown_timer = 0;
 
   enum ModelType {
@@ -49,7 +49,7 @@ using namespace std;
     }
   }
 
-  int switch_cool_down = 0;
+  int zero_action_cool_down = 0;
   /**
    * @brief Update robot move command based on keyboard input
    */
@@ -81,19 +81,28 @@ using namespace std;
     
     // Handle turning (A for left turn, D for right turn)
     if (keyboard_handler->IsKeyPressed("a")) {
-      robot_move_command.turn_speed += M_PI / 4.0f;  // Left turn
+      robot_move_command.turn_speed += M_PI / 6.0f;  // Left turn
     }
     if (keyboard_handler->IsKeyPressed("d")) {
-      robot_move_command.turn_speed += -M_PI / 4.0f;   // Right turn
+      robot_move_command.turn_speed += -M_PI / 6.0f;   // Right turn
     }
 
-    if (keyboard_handler->IsKeyPressed("space") && switch_cool_down > 100) {
-      debug_zero_actions_ = !debug_zero_actions_;
-      std::cout << "Zero actions debug mode: " << (debug_zero_actions_ ? "ENABLED" : "DISABLED") << std::endl;
-      switch_cool_down = 0;
+    // 等待1秒停止
+    zero_action_cool_down++;
+    bool zero_command = robot_move_command.forward_speed == 0 && robot_move_command.left_speed == 0 && robot_move_command.turn_speed == 0;
+    if (zero_command) {
+      if (zero_action_cool_down > 200) {
+        zero_actions = true;
+      }
+      else {
+        zero_actions = false;
+      }
+    }
+    else {
+      zero_actions = false;
+      zero_action_cool_down = 0;
     }
 
-    switch_cool_down++;
 
     if (keyboard_handler->IsKeyPressed("1")) {
       std::cout << "Switch to flat terrain" << std::endl;
@@ -288,7 +297,7 @@ int main(int argc, char* argv[]){
       RobotAction action = ConvertResponseToAction(response);
 
       // Set Zero actions for debugging (only when debug mode is enabled)
-      if (debug_zero_actions_) {
+      if (zero_actions) {
         for (int i = 0; i < 12; ++i) {
           action.data[i] = 0.0f;
         }
@@ -316,7 +325,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000 / time_step) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 35, 1.0);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 35, 2.0);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){
