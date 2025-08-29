@@ -258,11 +258,11 @@ int main(int argc, char* argv[]){
       // Convert RobotData to Observation
       Observation observation = ConvertRobotDataToObservation(*robot_data, last_action, robot_move_command);
 
-      // Save observation data to file
-      data_logger->SaveObservation(time_tick, observation);
-      
       // Apply scaling and noise to match training conditions
       Observation processed_observation = ApplyObservationScalingAndNoise(observation);
+
+      // Save observation data to file
+      data_logger->SaveObservation(time_tick, processed_observation);
 
       // Send the observation and receive the action
       inference::InferenceResponse response;
@@ -316,7 +316,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000 / time_step) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 25, 1.0);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 35, 1.0);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){

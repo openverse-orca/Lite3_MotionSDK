@@ -1,6 +1,7 @@
 #include "../include/grpc_client.h"
 #include "../include/imu_processor.h"
 #include "../include/square_wave.h"
+#include <cstdio>
 #include <iostream>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/security/credentials.h>
@@ -168,14 +169,14 @@ Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std
     obs.data.push_back(0.0f);  // 线速度命令 z
     obs.data.push_back(robot_move_command.turn_speed);  // 角速度命令 z
     
-    // 5. 方波信号 - 1个值
-    // 设置方波生成器的时间步长，200Hz，0.005s
-    square_wave_generator.set_dt(0.005f);
-    // 设置方波参数，参考 Lite3_confg.py
-    square_wave_generator.set_foot_square_wave(0.5f, 0.8f, 0.2f);  // p5=0.5, phase_freq=1.0, eps=0.1 
-    // 计算方波信号，使用前向速度作为输入
-    float square_wave = square_wave_generator.compute_square_wave(robot_move_command.forward_speed);
-    obs.data.push_back(square_wave);
+    // // 5. 方波信号 - 1个值
+    // // 设置方波生成器的时间步长，200Hz，0.005s
+    // square_wave_generator.set_dt(0.005f);
+    // // 设置方波参数，参考 Lite3_confg.py
+    // square_wave_generator.set_foot_square_wave(0.5f, 0.8f, 0.2f);  // p5=0.5, phase_freq=1.0, eps=0.1 
+    // // 计算方波信号，使用前向速度作为输入
+    // float square_wave = square_wave_generator.compute_square_wave(robot_move_command.forward_speed);
+    // obs.data.push_back(square_wave);
     
     // 6. 关节位置相对于中性位置的偏差 (12个值)
     // 中性位置通常为站立姿态的关节角度
@@ -187,9 +188,9 @@ Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std
     //                         "HL_HipX_joint": 0.0, "HL_HipY_joint": -1.0, "HL_Knee_joint": 1.5,
     //                         "HR_HipX_joint": 0.0, "HR_HipY_joint": -1.0, "HR_Knee_joint": 1.5},
     const std::vector<float> neutral_joint_values = {
-        0.0f, -1.0f, 1.8f,  // FL: hip, thigh, calf
+        -0.0f, -1.0f, 1.8f,  // FL: hip, thigh, calf
         0.0f, -1.0f, 1.8f,  // FR: hip, thigh, calf
-        0.0f, -1.0f, 1.8f,  // HL: hip, thigh, calf
+        -0.0f, -1.0f, 1.8f,  // HL: hip, thigh, calf
         0.0f, -1.0f, 1.8f   // HR: hip, thigh, calf
     };
     
@@ -207,9 +208,10 @@ Observation ConvertRobotDataToObservation(const RobotData& robot_data, const std
         obs.data.push_back(action_data[i]);
     }
     
-    // 9. 身体高度 16 个浮点数，计算周边16个点位，从激光雷达获取。当前训练用的16个0值
+    // 9. 身体高度 16 个浮点数，计算周边16个点位，从激光雷达获取。目前没有激光雷达，按照python计算出来的默认值处理
     for (int i = 0; i < 16; ++i) {
-        obs.data.push_back(0.0f);
+        const float BODY_HEIGHT_TARGET = 0.0f; // 从 Python 程序中打印获得的目标高度。与初始关节角和机器人构型相关，更改默认关节角需要从新获得这个值
+        obs.data.push_back(BODY_HEIGHT_TARGET);
     }
     
     return obs;
@@ -363,7 +365,7 @@ std::vector<float> getNoiseScaleVec() {
 Observation ApplyObservationScalingAndNoise(const Observation& obs) {
     Observation processed_obs;
     
-    if (obs.data.size() != 66) {
+    if (obs.data.size() != 65) {
         std::cerr << "Warning: Observation data size is " << obs.data.size() 
                   << " (expected 65), skipping scaling and noise" << std::endl;
         return obs;
@@ -396,10 +398,10 @@ RobotCmd CreateRobotCmd(const RobotAction& action) {
     }
 
     const std::vector<float> neutral_joint_values = {
-        0.0f, -0.8f, 1.5f,  // FL: hip, thigh, calf
-        0.0f, -0.8f, 1.5f,  // FR: hip, thigh, calf
-        0.0f, -1.0f, 1.5f,  // HL: hip, thigh, calf
-        0.0f, -1.0f, 1.5f   // HR: hip, thigh, calf
+        -0.0f, -1.0f, 1.8f,  // FL: hip, thigh, calf
+        0.0f, -1.0f, 1.8f,  // FR: hip, thigh, calf
+        -0.0f, -1.0f, 1.8f,  // HL: hip, thigh, calf
+        0.0f, -1.0f, 1.8f   // HR: hip, thigh, calf
     };
 
 
@@ -419,21 +421,21 @@ RobotAction ConvertResponseToAction(const inference::InferenceResponse& response
     // 定义动作缩放因子，对应12个关节
     // 顺序：FL_HipX, FL_HipY, FL_Knee, FR_HipX, FR_HipY, FR_Knee, HL_HipX, HL_HipY, HL_Knee, HR_HipX, HR_HipY, HR_Knee
     const std::vector<float> action_scale = {
-        0.2f,    // FL_HipX_joint: range="-0.523 0.523", neutral=0.0
-        1.0f,    // FL_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.8f,    // FL_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.3f,    // FL_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.8f,    // FL_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.5f,    // FL_Knee_joint: range="0.524 2.792", neutral=1.8
         
-        0.2f,    // FR_HipX_joint: range="-0.523 0.523", neutral=0.0
-        1.0f,    // FR_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.8f,    // FR_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.3f,    // FR_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.8f,    // FR_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.5f,    // FR_Knee_joint: range="0.524 2.792", neutral=1.8
         
-        0.2f,    // HL_HipX_joint: range="-0.523 0.523", neutral=0.0
-        1.0f,    // HL_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.8f,    // HL_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.3f,    // HL_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.8f,    // HL_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.5f,    // HL_Knee_joint: range="0.524 2.792", neutral=1.8
         
-        0.2f,    // HR_HipX_joint: range="-0.523 0.523", neutral=0.0
-        1.0f,    // HR_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.8f,    // HR_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.3f,    // HR_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.8f,    // HR_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.5f,    // HR_Knee_joint: range="0.524 2.792", neutral=1.8
     };
     
     if (response.success()) {
