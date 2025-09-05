@@ -325,7 +325,7 @@ int main(int argc, char* argv[]){
     }
     // // do spline interpolation
     if (time_tick >= 10000 / time_step) {
-      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 35, 2.0);
+      robot_joint_cmd = CreateRobotCmdFromNumber(fl_leg_positions, fr_leg_positions, hl_leg_positions, hr_leg_positions, 30, 0.7);
     }
     if(is_message_updated_){ 
       // if (time_tick < 10000){

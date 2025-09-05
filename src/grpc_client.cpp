@@ -421,21 +421,21 @@ RobotAction ConvertResponseToAction(const inference::InferenceResponse& response
     // 定义动作缩放因子，对应12个关节
     // 顺序：FL_HipX, FL_HipY, FL_Knee, FR_HipX, FR_HipY, FR_Knee, HL_HipX, HL_HipY, HL_Knee, HR_HipX, HR_HipY, HR_Knee
     const std::vector<float> action_scale = {
-        0.3f,    // FL_HipX_joint: range="-0.523 0.523", neutral=0.0
-        0.8f,    // FL_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.5f,    // FL_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.25f,    // FL_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.25f,    // FL_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.25f,    // FL_Knee_joint: range="0.524 2.792", neutral=1.8
         
-        0.3f,    // FR_HipX_joint: range="-0.523 0.523", neutral=0.0
-        0.8f,    // FR_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.5f,    // FR_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.25f,    // FR_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.25f,    // FR_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.25f,    // FR_Knee_joint: range="0.524 2.792", neutral=1.8
         
-        0.3f,    // HL_HipX_joint: range="-0.523 0.523", neutral=0.0
-        0.8f,    // HL_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.5f,    // HL_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.25f,    // HL_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.25f,    // HL_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.25f,    // HL_Knee_joint: range="0.524 2.792", neutral=1.8
         
-        0.3f,    // HR_HipX_joint: range="-0.523 0.523", neutral=0.0
-        0.8f,    // HR_HipY_joint: range="-2.67 0.314", neutral=-1.0
-        0.5f,    // HR_Knee_joint: range="0.524 2.792", neutral=1.8
+        0.25f,    // HR_HipX_joint: range="-0.523 0.523", neutral=0.0
+        0.25f,    // HR_HipY_joint: range="-2.67 0.314", neutral=-1.0
+        0.25f,    // HR_Knee_joint: range="0.524 2.792", neutral=1.8
     };
     
     if (response.success()) {
